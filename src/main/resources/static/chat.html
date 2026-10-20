@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RealTimeChat - WebSocket Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; }
+        #messages { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; }
+        .message { margin-bottom: 8px; }
+        .system { color: #777; }
+        input { padding: 10px; box-sizing: border-box; }
+        #sender { width: 140px; }
+        #content { width: calc(100% - 260px); }
+        button { padding: 10px 16px; }
+    </style>
+</head>
+<body>
+<h1>RealTimeChat</h1>
+<p id="status" class="system">연결 중...</p>
+
+<div id="messages"></div>
+
+<input id="sender" type="text" placeholder="이름">
+<input id="content" type="text" placeholder="메시지 입력">
+<button id="send" type="button">전송</button>
+
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.1.1/bundles/stomp.umd.min.js"></script>
+<script>
+    const status = document.getElementById('status');
+    const messages = document.getElementById('messages');
+    const senderInput = document.getElementById('sender');
+    const contentInput = document.getElementById('content');
+    const sendButton = document.getElementById('send');
+
+    const client = new StompJs.Client({
+        brokerURL: 'ws://localhost:8080/ws',
+        reconnectDelay: 3000,
+        onConnect: () => {
+            status.textContent = '연결됨';
+            status.style.color = 'green';
+
+            client.subscribe('/topic/chat', (message) => {
+                const data = JSON.parse(message.body);
+                const item = document.createElement('div');
+                item.className = 'message';
+                item.textContent = `${data.sender}: ${data.content}`;
+                messages.appendChild(item);
+                messages.scrollTop = messages.scrollHeight;
+            });
+        },
+        onWebSocketError: () => {
+            status.textContent = 'WebSocket 연결 실패';
+            status.style.color = 'red';
+        },
+        onStompError: (frame) => {
+            console.error('STOMP error:', frame);
+        }
+    });
+
+    function sendMessage() {
+        const sender = senderInput.value.trim();
+        const content = contentInput.value.trim();
+
+        if (!sender || !content || !client.connected) {
+            return;
+        }
+
+        client.publish({
+            destination: '/app/chat',
+            body: JSON.stringify({ sender, content })
+        });
+
+        contentInput.value = '';
+        contentInput.focus();
+    }
+
+    sendButton.addEventListener('click', sendMessage);
+    contentInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            sendMessage();
+        }
+    });
+
+    client.activate();
+</script>
+</body>
+</html>

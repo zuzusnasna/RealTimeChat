@@ -1,6 +1,6 @@
 # RealTimeChat
 
-**Java 21 · Spring Boot · React · React Router · WebSocket/STOMP · MySQL** 기반의 실시간 채팅 서비스입니다.
+**Java 21 · Spring Boot · React · React Router · WebSocket/STOMP · MySQL · Redis Pub/Sub** 기반의 실시간 채팅 서비스입니다.
 
 회원가입과 세션 인증부터 채팅방별 접근 제어까지 구현하고, 이후 Redis 기반 분산 메시지 처리와 부하 테스트를 통해 확장성과 운영 역량을 검증하는 백엔드 프로젝트입니다.
 
@@ -31,7 +31,7 @@
 | Framework | Spring Boot 4.1.1 |
 | Security | Spring Security, BCrypt, HTTP Session |
 | Real-time | WebSocket, STOMP |
-| Database | MySQL 8 |
+| Database | MySQL 8 |\n| Distributed messaging | Redis Pub/Sub (optional) |
 | Persistence | Spring Data JPA, Hibernate |
 | Validation | Jakarta Bean Validation |
 | Frontend | React, React Router, Vite |
@@ -52,7 +52,7 @@
 | 발신자 검증 | 클라이언트가 보낸 발신자 대신 인증된 세션 사용자 사용 | 로컬 확인 |
 | 인증 접근 제어 | 로그아웃 후 채팅 REST API 및 WebSocket 접근 차단 | 로컬 확인 |
 | 채팅방 권한 | 참여자만 이력 조회·메시지 전송·토픽 구독 가능하도록 서버에서 검증 | 구현 완료, 로컬 검증 필요 |
-| 분산 메시징 | Redis Pub/Sub | 예정 |
+| 분산 메시징 | Redis Pub/Sub 기반 서버 간 메시지 중계 | 구현, Redis 환경 검증 필요 |
 | 성능 테스트 | k6 동시 접속·메시지 부하 테스트 | 예정 |
 | 모니터링 | Actuator 지표 노출 및 Prometheus/Grafana 연동 | 예정 |
 | 배포 | Docker 및 CI/CD | 예정 |
@@ -202,7 +202,7 @@ Vite 개발 서버 주소: http://localhost:5173/ui/#/login
 - [x] 인증 사용자 기반 WebSocket 발신자 검증
 - [x] 채팅방 참여 정보 및 서버 측 권한 검사 구현
 - [ ] 채팅방 참여 권한 로컬 테스트 및 예외 처리 보완
-- [ ] Redis Pub/Sub으로 다중 애플리케이션 인스턴스 간 메시지 전달
+- [x] Redis Pub/Sub 메시지 중계 코드 및 선택적 설정 추가\n- [ ] Redis를 실행한 상태에서 다중 애플리케이션 인스턴스 간 메시지 전달 검증
 - [ ] k6로 동시 접속 및 메시지 처리 성능 측정
 - [ ] Actuator 지표 구성 및 Prometheus/Grafana 연동
 - [ ] Docker 및 CI/CD 기반 배포 자동화

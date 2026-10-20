@@ -73,7 +73,7 @@ function LoginPage() {
         <p className="form-help">{mode === 'login' ? '아이디와 비밀번호를 입력하세요.' : '사용할 아이디와 비밀번호를 입력하세요.'}</p>
         <form onSubmit={submit}>
           <label htmlFor="username">아이디</label>
-          <input id="username" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" minLength={3} maxLength={50} required />
+          <input id="username" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" minLength={3} maxLength={30} required />
           <label htmlFor="password">비밀번호</label>
           <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} maxLength={72} required />
           <button className="primary-button auth-submit" disabled={busy}>{busy ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}</button>

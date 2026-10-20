@@ -41,7 +41,11 @@ def frontendDir = file("$projectDir/frontend")
 
 tasks.register('installFrontendDependencies', Exec) {
 	workingDir frontendDir
-	commandLine 'npm', 'install'
+	if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+		commandLine 'cmd', '/c', 'npm install'
+	} else {
+		commandLine 'npm', 'install'
+	}
 	inputs.file("$frontendDir/package.json")
 	outputs.file("$frontendDir/package-lock.json")
 }
@@ -49,7 +53,11 @@ tasks.register('installFrontendDependencies', Exec) {
 tasks.register('buildFrontend', Exec) {
 	dependsOn 'installFrontendDependencies'
 	workingDir frontendDir
-	commandLine 'npm', 'run', 'build'
+	if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+		commandLine 'cmd', '/c', 'npm run build'
+	} else {
+		commandLine 'npm', 'run', 'build'
+	}
 	inputs.files(fileTree("$frontendDir/src"), file("$frontendDir/index.html"), file("$frontendDir/vite.config.js"), file("$frontendDir/package.json"))
 	outputs.dir("$projectDir/src/main/resources/static/ui")
 }

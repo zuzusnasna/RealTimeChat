@@ -2,7 +2,42 @@
   "hash": "26fdeecf",
   "configHash": "39a179ec",
   "lockfileHash": "af195197",
-  "browserHash": "06db5219",
-  "optimized": {},
-  "chunks": {}
+  "browserHash": "7cb8fb65",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "1fb6dd61",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "7480216a",
+      "needsInterop": true
+    },
+    "react-router-dom": {
+      "src": "../../node_modules/react-router-dom/dist/index.mjs",
+      "file": "react-router-dom.js",
+      "fileHash": "9a2284c6",
+      "needsInterop": false
+    },
+    "@stomp/stompjs": {
+      "src": "../../node_modules/@stomp/stompjs/esm6/index.js",
+      "file": "@stomp_stompjs.js",
+      "fileHash": "ab2a5917",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-GOBB56EI": {
+      "file": "chunk-GOBB56EI.js"
+    },
+    "chunk-ZDXYSYSB": {
+      "file": "chunk-ZDXYSYSB.js"
+    },
+    "chunk-5WRI5ZAA": {
+      "file": "chunk-5WRI5ZAA.js"
+    }
+  }
 }

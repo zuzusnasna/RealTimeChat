@@ -31,8 +31,8 @@ public class ChatService {
     }
 
     @Transactional
-    public ChatMessageResponse saveMessage(Long roomId, ChatMessage message) {
-        String sender = message.getSender() == null ? "" : message.getSender().trim();
+    public ChatMessageResponse saveMessage(Long roomId, String authenticatedSender, ChatMessage message) {
+        String sender = authenticatedSender == null ? "" : authenticatedSender.trim();
         String content = message.getContent() == null ? "" : message.getContent().trim();
 
         if (sender.isBlank() || sender.length() > 50) {

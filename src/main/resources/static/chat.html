@@ -34,7 +34,7 @@
 <div id="messages" aria-live="polite"></div>
 
 <div class="row">
-    <input id="sender" type="text" maxlength="50" placeholder="이름">
+    <input id="sender" type="text" maxlength="50" placeholder="로그인 사용자" disabled>
     <input id="content" type="text" maxlength="1000" placeholder="메시지 입력">
     <button id="send" type="button" disabled>전송</button>
 </div>
@@ -205,7 +205,15 @@
         if (event.key === 'Enter') sendMessage();
     });
 
-    fetch('/api/auth/me').then(response => { if (!response.ok) window.location.href = '/login.html'; else client.activate(); }).catch(() => { window.location.href = '/login.html'; });
+    fetch('/api/auth/me').then(async response => {
+        if (!response.ok) {
+            window.location.href = '/login.html';
+            return;
+        }
+        const user = await response.json();
+        senderInput.value = user.username;
+        client.activate();
+    }).catch(() => { window.location.href = '/login.html'; });
 </script>
 </body>
 </html>

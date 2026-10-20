@@ -206,6 +206,19 @@ function ChatPage() {
     } catch (e) { setError(e.message); }
   }
 
+  async function deleteRoom(room) {
+    const confirmed = window.confirm(`'${room.name}' 채팅방을 삭제할까요? 저장된 메시지와 참여 정보도 모두 삭제됩니다.`);
+    if (!confirmed) return;
+    try {
+      await request('/api/rooms/' + room.id, { method: 'DELETE' });
+      if (sessionStorage.getItem('lastActiveRoomId') === String(room.id)) {
+        sessionStorage.removeItem('lastActiveRoomId');
+      }
+      await loadRooms();
+      setError('');
+    } catch (e) { setError(e.message); }
+  }
+
   function sendMessage(event) {
     event.preventDefault();
     const content = draft.trim();
@@ -229,10 +242,13 @@ function ChatPage() {
         <button aria-label="채팅방 만들기" title="채팅방 만들기" className="add-button">+</button>
       </form>
       <nav className="room-list" aria-label="채팅방 목록">
-        {rooms.map(room => <button key={room.id} type="button" className={String(room.id) === String(roomId) ? 'room-link selected' : 'room-link'} onClick={() => setRoomId(String(room.id))}>
-          <span className={room.joined ? 'room-indicator joined' : 'room-indicator'} />
-          <span className="room-name">{room.name}</span>
-        </button>)}
+        {rooms.map(room => <div key={room.id} className="room-item">
+          <button type="button" className={String(room.id) === String(roomId) ? 'room-link selected' : 'room-link'} onClick={() => setRoomId(String(room.id))}>
+            <span className={room.joined ? 'room-indicator joined' : 'room-indicator'} />
+            <span className="room-name">{room.name}</span>
+          </button>
+          {room.owner && <button type="button" className="room-delete" aria-label={room.name + ' 채팅방 삭제'} title="채팅방 삭제" onClick={() => deleteRoom(room)}>×</button>}
+        </div>)}
         {!rooms.length && <p className="empty-rooms">채팅방이 없습니다.</p>}
       </nav>
       <div className="sidebar-bottom">

@@ -96,7 +96,17 @@
                 return;
             }
 
-            const targetId = selectRoomId ?? (rooms.some(r => String(r.id) === String(activeRoomId)) ? activeRoomId : rooms[0].id);
+            // 새로고침 후 마지막으로 선택했던 채팅방을 복원합니다.
+            const savedRoomId = sessionStorage.getItem('lastActiveRoomId');
+            const roomExists = (id) => id != null && rooms.some(room => String(room.id) === String(id));
+            const targetId = roomExists(selectRoomId)
+                ? selectRoomId
+                : roomExists(savedRoomId)
+                    ? savedRoomId
+                    : roomExists(activeRoomId)
+                        ? activeRoomId
+                        : rooms[0].id;
+
             roomSelect.value = String(targetId);
             await selectRoom(targetId);
         } catch (error) {
@@ -108,6 +118,7 @@
     async function selectRoom(roomId) {
         if (!roomId) return;
         activeRoomId = Number(roomId);
+        sessionStorage.setItem('lastActiveRoomId', String(activeRoomId));
         roomSubscription?.unsubscribe();
         roomSubscription = null;
         messages.replaceChildren();

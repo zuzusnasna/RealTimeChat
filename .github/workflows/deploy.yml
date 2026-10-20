@@ -8,17 +8,55 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
+    env:
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'root' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Verify Java
+        shell: powershell
         run: java -version
+
+      - name: Start MySQL and Redis
+        shell: powershell
+        run: docker compose up -d mysql redis
+
+      - name: Wait for MySQL and Redis health
+        shell: powershell
+        run: |
+          $services = @("realtime-chat-mysql", "realtime-chat-redis")
+          foreach ($service in $services) {
+            $deadline = (Get-Date).AddMinutes(2)
+            do {
+              $status = docker inspect --format='{{.State.Health.Status}}' $service 2>$null
+              if ($LASTEXITCODE -ne 0) {
+                throw "Container $service was not found."
+              }
+              Write-Host "$service health: $status"
+              if ($status -eq "healthy") { break }
+              if ($status -eq "unhealthy") {
+                docker logs $service
+                throw "Container $service is unhealthy."
+              }
+              if ((Get-Date) -ge $deadline) {
+                docker logs $service
+                throw "Timed out waiting for $service to become healthy."
+              }
+              Start-Sleep -Seconds 5
+            } while ($true)
+          }
 
       - name: Run backend tests
         shell: powershell
-        run: .\gradlew.bat test --no-daemon
+        env:
+          DB_URL: jdbc:mysql://localhost:3306/realtime_chat?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+          DB_USERNAME: root
+          CHAT_REDIS_ENABLED: "true"
+          REDIS_HOST: localhost
+          REDIS_PORT: "6379"
+        run: .\gradlew.bat clean test --no-daemon
 
       - name: Rebuild and restart containers
         shell: powershell

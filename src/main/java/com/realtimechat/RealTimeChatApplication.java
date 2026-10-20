@@ -1,13 +1,12 @@
-package com.realtimechat.demo;
+package com.realtimechat;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class DemoApplication {
+public class RealTimeChatApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(DemoApplication.class, args);
+		SpringApplication.run(RealTimeChatApplication.class, args);
 	}
-
 }

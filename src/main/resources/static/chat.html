@@ -30,7 +30,10 @@
     <input id="roomName" type="text" maxlength="100" placeholder="새 채팅방 이름">
     <button id="createRoom" type="button">방 만들기</button>
 </div>
-<select id="roomSelect" aria-label="채팅방 선택"></select>
+<div class="row">
+    <select id="roomSelect" aria-label="채팅방 선택"></select>
+    <button id="joinRoom" type="button" hidden>채팅방 참여</button>
+</div>
 
 <div id="messages" aria-live="polite"></div>
 
@@ -50,6 +53,9 @@
     const roomSelect = document.getElementById('roomSelect');
     const roomNameInput = document.getElementById('roomName');
     const createRoomButton = document.getElementById('createRoom');
+    const joinRoomButton = document.getElementById('joinRoom');
+
+    let roomsById = new Map();
 
     let activeRoomId = null;
     let roomSubscription = null;
@@ -77,12 +83,13 @@
             const response = await fetch('/api/rooms');
             if (!response.ok) throw new Error('채팅방 목록을 불러오지 못했습니다.');
             const rooms = await response.json();
+            roomsById = new Map(rooms.map(room => [String(room.id), room]));
 
             roomSelect.replaceChildren();
             rooms.forEach((room) => {
                 const option = document.createElement('option');
                 option.value = room.id;
-                option.textContent = room.name;
+                option.textContent = room.name + (room.joined ? ' (참여중)' : ' (참여 가능)');
                 roomSelect.appendChild(option);
             });
 
@@ -122,7 +129,16 @@
         roomSubscription?.unsubscribe();
         roomSubscription = null;
         messages.replaceChildren();
-        sendButton.disabled = !client.connected;
+
+        const selectedRoom = roomsById.get(String(activeRoomId));
+        const joined = Boolean(selectedRoom?.joined);
+        joinRoomButton.hidden = joined;
+        sendButton.disabled = !client.connected || !joined;
+
+        if (!joined) {
+            appendSystemMessage('이 채팅방의 메시지를 보려면 먼저 참여해야 합니다.');
+            return;
+        }
 
         try {
             const response = await fetch('/api/rooms/' + activeRoomId + '/messages');
@@ -163,6 +179,24 @@
         item.className = 'system';
         item.textContent = text;
         messages.appendChild(item);
+    }
+
+    async function joinRoom() {
+        if (!activeRoomId) return;
+        joinRoomButton.disabled = true;
+        try {
+            const response = await fetch('/api/rooms/' + activeRoomId + '/join', { method: 'POST' });
+            if (!response.ok) {
+                const body = await response.json().catch(() => ({}));
+                throw new Error(body.detail || body.message || '채팅방 참여에 실패했습니다.');
+            }
+            await loadRooms(activeRoomId);
+        } catch (error) {
+            status.textContent = error.message;
+            status.style.color = 'red';
+        } finally {
+            joinRoomButton.disabled = false;
+        }
     }
 
     async function createRoom() {
@@ -208,6 +242,7 @@
 
     roomSelect.addEventListener('change', () => selectRoom(roomSelect.value));
     createRoomButton.addEventListener('click', createRoom);
+    joinRoomButton.addEventListener('click', joinRoom);
     roomNameInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') createRoom();
     });

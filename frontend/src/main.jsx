@@ -99,6 +99,7 @@ function ChatPage() {
   const subscriptionRef = useRef(null);
   const roomIdRef = useRef('');
   const usernameRef = useRef('');
+  const messageAreaRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -146,6 +147,11 @@ function ChatPage() {
   }, [loadRooms]);
 
   const activeRoom = rooms.find(room => String(room.id) === String(roomId));
+
+  useEffect(() => {
+    const messageArea = messageAreaRef.current;
+    if (messageArea) messageArea.scrollTop = messageArea.scrollHeight;
+  }, [messages]);
 
   useEffect(() => {
     let alive = true;
@@ -240,14 +246,16 @@ function ChatPage() {
         {activeRoom && !activeRoom.joined && <button className="outline-button" type="button" onClick={joinRoom}>참여하기</button>}
       </header>
       {error && <div className="error-bar" role="alert">{error}<button type="button" onClick={() => setError('')} aria-label="오류 닫기">×</button></div>}
-      <section className="message-area" aria-label="메시지 목록">
+      <section className="message-area" aria-label="메시지 목록" ref={messageAreaRef}>
         {messages.map((message, index) => message.system
           ? <p className="system-message" key={'system-' + index}>{message.system}</p>
-          : <article key={message.id || message.createdAt + '-' + index} className={message.sender === username ? 'message own' : 'message'}>
-              <div className="message-author">{message.sender === username ? '나' : message.sender}</div>
-              <div className="message-content">{message.content}</div>
-              {message.createdAt && <time>{new Date(message.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</time>}
-            </article>)}
+          : <div key={message.id || message.createdAt + '-' + index} className={message.sender === username ? 'message-row own' : 'message-row'}>
+              <article className={message.sender === username ? 'message own' : 'message'}>
+                <div className="message-author">{message.sender === username ? '나' : message.sender}</div>
+                <div className="message-content">{message.content}</div>
+              </article>
+              {message.createdAt && <time className="message-time">{new Date(message.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</time>}
+            </div>)}
       </section>
       <form className="composer" onSubmit={sendMessage}>
         <input aria-label="메시지 입력" placeholder={activeRoom?.joined ? '메시지 입력...' : '채팅방에 참여한 뒤 메시지를 보낼 수 있습니다.'} maxLength={1000} value={draft} onChange={e => setDraft(e.target.value)} disabled={!connected || !activeRoom?.joined} />

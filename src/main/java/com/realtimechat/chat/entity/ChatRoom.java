@@ -22,12 +22,17 @@ public class ChatRoom {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    // Nullable to keep existing rooms compatible when Hibernate updates the schema.
+    @Column(length = 30)
+    private String createdBy;
+
     protected ChatRoom() {
     }
 
-    public ChatRoom(String name, LocalDateTime createdAt) {
+    public ChatRoom(String name, LocalDateTime createdAt, String createdBy) {
         this.name = name;
         this.createdAt = createdAt;
+        this.createdBy = createdBy;
     }
 
     public Long getId() {
@@ -40,5 +45,9 @@ public class ChatRoom {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
     }
 }

@@ -42,6 +42,10 @@ Spring Boot와 WebSocket을 기반으로 구현하는 실시간 채팅 서비스
 
 | Method | Endpoint | 설명 |
 |---|---|---|
+| `POST` | `/api/auth/signup` | 회원가입 |
+| `POST` | `/api/auth/login` | 로그인 및 세션 생성 |
+| `GET` | `/api/auth/me` | 현재 로그인 사용자 조회 |
+| `POST` | `/api/auth/logout` | 로그아웃 및 세션 종료 |
 | `GET` | `/api/rooms` | 채팅방 목록 조회 |
 | `POST` | `/api/rooms` | 채팅방 생성 |
 | `GET` | `/api/rooms/{roomId}/messages` | 특정 채팅방의 최근 메시지 조회 |

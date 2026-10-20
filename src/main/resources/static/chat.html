@@ -3,49 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RealTimeChat - Chat Rooms</title>
+    <meta name="theme-color" content="#171b26">
+    <title>RealTimeChat · Workspace</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 820px; margin: 32px auto; padding: 0 20px; color: #222; }
-        .row { display: flex; gap: 8px; margin: 12px 0; }
-        input, select { padding: 10px; box-sizing: border-box; }
-        #roomName { flex: 1; }
-        #roomSelect { width: 100%; }
-        #messages { height: 380px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; }
-        .message { margin-bottom: 10px; overflow-wrap: anywhere; }
-        .meta { color: #777; font-size: 12px; margin-left: 6px; }
-        .system { color: #777; }
-        #sender { width: 140px; }
-        #content { flex: 1; min-width: 0; }
-        button { padding: 10px 14px; cursor: pointer; }
-        button:disabled { cursor: not-allowed; opacity: .5; }
+        :root {
+            color-scheme: light;
+            --ink: #202635;
+            --muted: #778196;
+            --line: #e7eaf0;
+            --paper: #ffffff;
+            --canvas: #f4f6fa;
+            --sidebar: #171b26;
+            --sidebar-soft: #222837;
+            --accent: #5c6df3;
+            --accent-hover: #4b5ce0;
+            --green: #21a675;
+            --red: #d84d5b;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif; }
+        button, input, select { font: inherit; }
+        button { cursor: pointer; transition: background .18s ease, border-color .18s ease, transform .18s ease; }
+        button:disabled { cursor: not-allowed; opacity: .48; }
+        button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #9ca8ff; outline-offset: 2px; }
+        .app { display: grid; grid-template-columns: 278px minmax(0, 1fr); min-height: 100vh; }
+        .sidebar { display: flex; flex-direction: column; min-height: 100vh; padding: 25px 16px 18px; background: var(--sidebar); color: #f2f4fa; }
+        .brand { display: flex; align-items: center; gap: 11px; padding: 0 9px 25px; border-bottom: 1px solid #2b3140; }
+        .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(145deg, #7885ff, #4b5ce0); color: white; font-weight: 800; font-size: 18px; box-shadow: 0 7px 18px #5365f533; }
+        .brand-name { font-size: 15px; font-weight: 750; letter-spacing: -.3px; }
+        .brand-caption { margin-top: 3px; color: #929bb0; font-size: 11px; letter-spacing: .7px; text-transform: uppercase; }
+        .side-label { margin: 25px 10px 10px; color: #8b94a9; font-size: 10px; font-weight: 750; letter-spacing: 1.2px; text-transform: uppercase; }
+        .room-create { display: flex; gap: 7px; margin: 0 2px; }
+        .room-create input { min-width: 0; width: 100%; padding: 10px 11px; border: 1px solid #363d4e; border-radius: 8px; outline: none; background: #202635; color: #f5f7fb; font-size: 12px; }
+        .room-create input::placeholder { color: #7f899e; }
+        .room-create input:focus { border-color: #7e8bff; }
+        .icon-button { flex: 0 0 37px; border: 0; border-radius: 8px; background: var(--accent); color: white; font-size: 21px; line-height: 1; }
+        .icon-button:hover { background: var(--accent-hover); }
+        .room-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+        .room-list select { width: 100%; min-height: 42px; padding: 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #e7eaf3; font-size: 12px; }
+        .room-list select:focus { border-color: #454d65; }
+        .room-list select option { background: #202635; color: #fff; }
+        .side-hint { margin: 11px 10px; color: #7f899e; font-size: 11px; line-height: 1.6; }
+        .sidebar-spacer { flex: 1; min-height: 30px; }
+        .connection-card { display: flex; align-items: center; gap: 9px; padding: 12px; border: 1px solid #303748; border-radius: 10px; background: #1d2331; }
+        .connection-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #8992a5; box-shadow: 0 0 0 4px #8992a51c; }
+        .connection-title { color: #e8ebf3; font-size: 12px; font-weight: 650; }
+        .connection-subtitle { margin-top: 3px; color: #929bb0; font-size: 10px; }
+        .side-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 17px 4px 0; }
+        .user-chip { display: flex; align-items: center; gap: 9px; min-width: 0; }
+        .avatar { display: grid; place-items: center; flex: 0 0 31px; height: 31px; border-radius: 9px; background: #333d58; color: #dfe3ff; font-size: 12px; font-weight: 750; }
+        #sender { width: 130px; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: #e9edf7; font-size: 12px; }
+        #logout { padding: 7px 8px; border: 1px solid #363d4e; border-radius: 7px; background: transparent; color: #aab2c3; font-size: 11px; }
+        #logout:hover { border-color: #66708a; color: white; }
+        .workspace { display: flex; flex-direction: column; min-width: 0; min-height: 100vh; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 76px; padding: 16px 32px; border-bottom: 1px solid var(--line); background: var(--paper); }
+        .eyebrow { margin-bottom: 5px; color: #8b93a5; font-size: 10px; font-weight: 750; letter-spacing: 1.4px; text-transform: uppercase; }
+        .topbar h1 { margin: 0; font-size: 19px; font-weight: 750; letter-spacing: -.5px; }
+        .topbar-note { color: #8a92a3; font-size: 11px; }
+        .workspace-content { display: flex; flex: 1; flex-direction: column; width: 100%; max-width: 1120px; min-height: 0; margin: 0 auto; padding: 28px 32px 24px; }
+        .room-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+        .room-heading { min-width: 0; }
+        .room-heading h2 { margin: 0; overflow-wrap: anywhere; font-size: 21px; letter-spacing: -.5px; }
+        .room-description { margin-top: 6px; color: var(--muted); font-size: 12px; }
+        #joinRoom { padding: 10px 14px; border: 1px solid #d8ddff; border-radius: 8px; background: #f0f2ff; color: #4c5cdb; font-size: 12px; font-weight: 700; }
+        #joinRoom:hover { background: #e5e8ff; }
+        .chat-panel { display: flex; flex: 1; flex-direction: column; min-height: 420px; overflow: hidden; border: 1px solid #e5e8ef; border-radius: 14px; background: var(--paper); box-shadow: 0 8px 28px #29344d08; }
+        .chat-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 20px; border-bottom: 1px solid #edf0f5; }
+        .panel-label { color: #3e4759; font-size: 12px; font-weight: 750; }
+        .panel-caption { margin-top: 4px; color: #9aa2b1; font-size: 10px; }
+        .secure-label { display: flex; align-items: center; gap: 6px; color: #8b94a5; font-size: 10px; white-space: nowrap; }
+        .secure-label span { color: var(--green); font-size: 13px; }
+        #messages { display: flex; flex: 1; flex-direction: column; gap: 13px; min-height: 0; overflow-y: auto; padding: 23px 22px; background: linear-gradient(#fff, #fcfcfe); }
+        .message { align-self: flex-start; max-width: min(78%, 680px); padding: 10px 13px; border: 1px solid #e9ecf3; border-radius: 4px 12px 12px 12px; background: #f5f7fb; overflow-wrap: anywhere; color: #343d4f; font-size: 13px; line-height: 1.65; }
+        .message .message-author { display: block; margin-bottom: 4px; color: #5c6df3; font-size: 10px; font-weight: 750; }
+        .message .meta { display: block; margin-top: 4px; color: #9aa2b1; font-size: 10px; text-align: right; }
+        .system { align-self: center; max-width: 100%; margin: 5px 0; padding: 7px 11px; border-radius: 8px; background: #f0f2f6; color: #7c8596; font-size: 11px; text-align: center; }
+        .composer { display: flex; align-items: flex-end; gap: 10px; padding: 16px 18px; border-top: 1px solid #edf0f5; background: white; }
+        .composer-field { flex: 1; min-width: 0; }
+        .composer-label { margin: 0 0 7px 3px; color: #8b94a5; font-size: 10px; font-weight: 700; }
+        #content { display: block; width: 100%; min-width: 0; padding: 12px 14px; border: 1px solid #e2e6ee; border-radius: 9px; outline: none; background: #fafbfe; color: #202635; font-size: 13px; }
+        #content:focus { border-color: #9da7ff; background: white; box-shadow: 0 0 0 3px #5c6df315; }
+        #content::placeholder { color: #a2a9b6; }
+        #send { min-height: 42px; padding: 0 20px; border: 0; border-radius: 9px; background: var(--accent); color: white; font-size: 12px; font-weight: 750; }
+        #send:hover:not(:disabled) { background: var(--accent-hover); }
+        .composer-hint { margin: 8px 3px 0; color: #a1a8b5; font-size: 10px; }
+        @media (max-width: 760px) {
+            .app { grid-template-columns: 1fr; }
+            .sidebar { min-height: auto; padding: 15px; }
+            .brand { padding-bottom: 14px; }
+            .side-label { margin-top: 16px; }
+            .sidebar-spacer, .connection-card, .side-hint { display: none; }
+            .side-footer { padding-top: 12px; }
+            .workspace { min-height: 65vh; }
+            .topbar { min-height: 62px; padding: 13px 18px; }
+            .topbar-note { display: none; }
+            .workspace-content { padding: 20px 14px; }
+            .chat-panel { min-height: 420px; }
+            #messages { padding: 17px 12px; }
+            .message { max-width: 92%; }
+            .composer { padding: 12px; }
+            #send { padding: 0 14px; }
+        }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
     </style>
 </head>
 <body>
-<h1>RealTimeChat</h1>
-<p id="status" class="system">WebSocket 연결 중...</p>
-<button id="logout" type="button">로그아웃</button>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark" aria-hidden="true">R</div>
+            <div><div class="brand-name">RealTimeChat</div><div class="brand-caption">Messaging workspace</div></div>
+        </div>
 
-<h2>채팅방</h2>
-<div class="row">
-    <input id="roomName" type="text" maxlength="100" placeholder="새 채팅방 이름">
-    <button id="createRoom" type="button">방 만들기</button>
-</div>
-<div class="row">
-    <select id="roomSelect" aria-label="채팅방 선택"></select>
-    <button id="joinRoom" type="button" hidden>채팅방 참여</button>
-</div>
+        <div class="side-label">Workspace / Rooms</div>
+        <div class="room-create">
+            <input id="roomName" type="text" maxlength="100" placeholder="새 채팅방 이름" aria-label="새 채팅방 이름">
+            <button id="createRoom" class="icon-button" type="button" aria-label="채팅방 만들기" title="채팅방 만들기">+</button>
+        </div>
+        <div class="side-label">채팅방 목록</div>
+        <div class="room-list">
+            <select id="roomSelect" aria-label="채팅방 선택" size="7"></select>
+        </div>
+        <p class="side-hint">방을 선택해 대화를 확인하세요. 참여하지 않은 방은 먼저 참여해야 메시지를 볼 수 있습니다.</p>
 
-<div id="messages" aria-live="polite"></div>
+        <div class="sidebar-spacer"></div>
+        <div class="connection-card">
+            <span class="connection-dot" id="connectionDot"></span>
+            <div><div class="connection-title" id="connectionTitle">연결 확인 중</div><div class="connection-subtitle" id="connectionSubtitle">WebSocket · STOMP</div></div>
+        </div>
+        <div class="side-footer">
+            <div class="user-chip"><div class="avatar" id="userAvatar">U</div><input id="sender" type="text" placeholder="로그인 사용자" disabled aria-label="로그인 사용자"></div>
+            <button id="logout" type="button">로그아웃</button>
+        </div>
+    </aside>
 
-<div class="row">
-    <input id="sender" type="text" maxlength="50" placeholder="로그인 사용자" disabled>
-    <input id="content" type="text" maxlength="1000" placeholder="메시지 입력">
-    <button id="send" type="button" disabled>전송</button>
+    <main class="workspace">
+        <header class="topbar">
+            <div><div class="eyebrow">Realtime / Messaging</div><h1>채팅 워크스페이스</h1></div>
+            <div class="topbar-note">Session authenticated · Room-scoped access</div>
+        </header>
+        <section class="workspace-content">
+            <div class="room-toolbar">
+                <div class="room-heading"><h2 id="activeRoomTitle">채팅방을 선택하세요</h2><div class="room-description" id="activeRoomDescription">대화 내역과 실시간 메시지가 이곳에 표시됩니다.</div></div>
+                <button id="joinRoom" type="button" hidden>채팅방 참여</button>
+            </div>
+            <section class="chat-panel" aria-label="채팅 메시지">
+                <div class="chat-panel-header">
+                    <div><div class="panel-label">Messages</div><div class="panel-caption">실시간 메시지 스트림</div></div>
+                    <div class="secure-label"><span aria-hidden="true">●</span> 세션 인증 보호</div>
+                </div>
+                <div id="messages" aria-live="polite" aria-relevant="additions text"><div class="system">채팅방을 선택하거나 새 채팅방을 만들어 주세요.</div></div>
+                <div class="composer">
+                    <div class="composer-field"><div class="composer-label">MESSAGE INPUT</div><input id="content" type="text" maxlength="1000" placeholder="메시지를 입력하세요..." autocomplete="off" aria-label="메시지 입력"><div class="composer-hint">Enter 키로 메시지 전송</div></div>
+                    <button id="send" type="button" disabled>전송 ↗</button>
+                </div>
+            </section>
+        </section>
+    </main>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.1.1/bundles/stomp.umd.min.js"></script>
 <script>
-    const status = document.getElementById('status');
+    const status = document.getElementById('connectionTitle');
+    const connectionDot = document.getElementById('connectionDot');
     const messages = document.getElementById('messages');
     const senderInput = document.getElementById('sender');
     const contentInput = document.getElementById('content');
@@ -54,29 +174,33 @@
     const roomNameInput = document.getElementById('roomName');
     const createRoomButton = document.getElementById('createRoom');
     const joinRoomButton = document.getElementById('joinRoom');
+    const activeRoomTitle = document.getElementById('activeRoomTitle');
+    const activeRoomDescription = document.getElementById('activeRoomDescription');
 
     let roomsById = new Map();
-
     let activeRoomId = null;
     let roomSubscription = null;
 
     const client = new StompJs.Client({
-        brokerURL: 'ws://localhost:8080/ws',
+        brokerURL: (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/ws',
         reconnectDelay: 3000,
         onConnect: async () => {
-            status.textContent = 'WebSocket 연결됨';
-            status.style.color = 'green';
+            setConnectionStatus('WebSocket 연결됨', true);
             await loadRooms();
         },
-        onWebSocketError: () => {
-            status.textContent = 'WebSocket 연결 실패';
-            status.style.color = 'red';
-        },
+        onWebSocketError: () => setConnectionStatus('WebSocket 연결 실패', false),
         onStompError: (frame) => {
             console.error('STOMP error:', frame);
-            status.textContent = '메시지 처리 오류가 발생했습니다.';
+            setConnectionStatus('메시지 처리 오류', false);
         }
     });
+
+    function setConnectionStatus(text, connected) {
+        status.textContent = text;
+        connectionDot.style.background = connected ? '#32c48d' : '#e06b77';
+        connectionDot.style.boxShadow = connected ? '0 0 0 4px #32c48d1c' : '0 0 0 4px #e06b771c';
+        document.getElementById('connectionSubtitle').textContent = connected ? 'STOMP · Connected' : 'STOMP · Disconnected';
+    }
 
     async function loadRooms(selectRoomId = null) {
         try {
@@ -89,7 +213,7 @@
             rooms.forEach((room) => {
                 const option = document.createElement('option');
                 option.value = room.id;
-                option.textContent = room.name + (room.joined ? ' (참여중)' : ' (참여 가능)');
+                option.textContent = (room.joined ? '●  ' : '○  ') + room.name + (room.joined ? '  · 참여중' : '  · 참여 가능');
                 roomSelect.appendChild(option);
             });
 
@@ -98,27 +222,24 @@
                 roomSubscription?.unsubscribe();
                 roomSubscription = null;
                 messages.replaceChildren();
-                messages.textContent = '채팅방을 만들어 대화를 시작하세요.';
+                appendSystemMessage('아직 채팅방이 없습니다. 왼쪽에서 새 채팅방을 만들어 보세요.');
+                activeRoomTitle.textContent = '채팅방이 없습니다';
+                activeRoomDescription.textContent = '첫 번째 대화를 시작해 보세요.';
+                joinRoomButton.hidden = true;
                 sendButton.disabled = true;
                 return;
             }
 
-            // 새로고침 후 마지막으로 선택했던 채팅방을 복원합니다.
             const savedRoomId = sessionStorage.getItem('lastActiveRoomId');
             const roomExists = (id) => id != null && rooms.some(room => String(room.id) === String(id));
-            const targetId = roomExists(selectRoomId)
-                ? selectRoomId
-                : roomExists(savedRoomId)
-                    ? savedRoomId
-                    : roomExists(activeRoomId)
-                        ? activeRoomId
-                        : rooms[0].id;
+            const targetId = roomExists(selectRoomId) ? selectRoomId
+                : roomExists(savedRoomId) ? savedRoomId
+                : roomExists(activeRoomId) ? activeRoomId : rooms[0].id;
 
             roomSelect.value = String(targetId);
             await selectRoom(targetId);
         } catch (error) {
-            status.textContent = error.message;
-            status.style.color = 'red';
+            setConnectionStatus(error.message, false);
         }
     }
 
@@ -132,6 +253,8 @@
 
         const selectedRoom = roomsById.get(String(activeRoomId));
         const joined = Boolean(selectedRoom?.joined);
+        activeRoomTitle.textContent = selectedRoom?.name || '채팅방';
+        activeRoomDescription.textContent = joined ? '참여 중인 채팅방 · 메시지를 주고받을 수 있습니다.' : '참여 전인 채팅방 · 참여 후 대화 내역을 확인할 수 있습니다.';
         joinRoomButton.hidden = joined;
         sendButton.disabled = !client.connected || !joined;
 
@@ -144,6 +267,7 @@
             const response = await fetch('/api/rooms/' + activeRoomId + '/messages');
             if (!response.ok) throw new Error('메시지 내역을 불러오지 못했습니다.');
             const history = await response.json();
+            if (history.length === 0) appendSystemMessage('첫 메시지를 보내 대화를 시작해 보세요.');
             history.forEach(appendMessage);
         } catch (error) {
             appendSystemMessage(error.message);
@@ -159,9 +283,12 @@
     function appendMessage(data) {
         const item = document.createElement('div');
         item.className = 'message';
+        const author = document.createElement('span');
+        author.className = 'message-author';
+        author.textContent = data.sender || '사용자';
         const text = document.createElement('span');
-        text.textContent = data.sender + ': ' + data.content;
-        item.appendChild(text);
+        text.textContent = data.content;
+        item.append(author, text);
 
         if (data.createdAt) {
             const time = document.createElement('span');
@@ -169,7 +296,6 @@
             time.textContent = new Date(data.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
             item.appendChild(time);
         }
-
         messages.appendChild(item);
         messages.scrollTop = messages.scrollHeight;
     }
@@ -192,8 +318,7 @@
             }
             await loadRooms(activeRoomId);
         } catch (error) {
-            status.textContent = error.message;
-            status.style.color = 'red';
+            setConnectionStatus(error.message, false);
         } finally {
             joinRoomButton.disabled = false;
         }
@@ -201,11 +326,7 @@
 
     async function createRoom() {
         const name = roomNameInput.value.trim();
-        if (!name) {
-            roomNameInput.focus();
-            return;
-        }
-
+        if (!name) { roomNameInput.focus(); return; }
         createRoomButton.disabled = true;
         try {
             const response = await fetch('/api/rooms', {
@@ -221,8 +342,7 @@
             roomNameInput.value = '';
             await loadRooms(room.id);
         } catch (error) {
-            status.textContent = error.message;
-            status.style.color = 'red';
+            setConnectionStatus(error.message, false);
         } finally {
             createRoomButton.disabled = false;
         }
@@ -231,7 +351,6 @@
     function sendMessage() {
         const content = contentInput.value.trim();
         if (!content || !activeRoomId || !client.connected) return;
-
         client.publish({
             destination: '/app/chat/' + activeRoomId,
             body: JSON.stringify({ content })
@@ -243,28 +362,22 @@
     roomSelect.addEventListener('change', () => selectRoom(roomSelect.value));
     createRoomButton.addEventListener('click', createRoom);
     joinRoomButton.addEventListener('click', joinRoom);
-    roomNameInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') createRoom();
-    });
+    roomNameInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') createRoom(); });
     sendButton.addEventListener('click', sendMessage);
-    contentInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') sendMessage();
-    });
+    contentInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') sendMessage(); });
 
     document.getElementById('logout').addEventListener('click', () => {
-        fetch('/api/auth/logout', { method: 'POST' }).then(() => {
+        fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
             client.deactivate();
             window.location.href = '/login.html';
         });
     });
 
     fetch('/api/auth/me').then(async response => {
-        if (!response.ok) {
-            window.location.href = '/login.html';
-            return;
-        }
+        if (!response.ok) { window.location.href = '/login.html'; return; }
         const user = await response.json();
         senderInput.value = user.username;
+        document.getElementById('userAvatar').textContent = (user.username || 'U').charAt(0).toUpperCase();
         client.activate();
     }).catch(() => { window.location.href = '/login.html'; });
 </script>

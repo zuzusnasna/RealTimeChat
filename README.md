@@ -1,8 +1,8 @@
 # RealTimeChat
 
-**Java 21 · Spring Boot · React · React Router · WebSocket/STOMP · MySQL · Redis Pub/Sub** 기반의 실시간 채팅 서비스입니다.
+**Java 21 · Spring Boot · React · React Router · WebSocket/STOMP · MySQL · Redis Pub/Sub · Docker** 기반의 실시간 채팅 서비스입니다.
 
-회원가입과 세션 인증부터 채팅방별 접근 제어까지 구현하고, Redis 기반 분산 메시지 처리와 부하 테스트를 통해 확장성과 운영 역량을 검증하는 백엔드 프로젝트입니다.
+회원가입과 세션 인증부터 채팅방별 접근 제어까지 구현하고, Redis 기반 분산 메시지 처리와 Docker 다중 인스턴스 환경을 통해 확장성과 운영 역량을 검증하는 백엔드 프로젝트입니다.
 
 ## 목차
 
@@ -12,6 +12,7 @@
 - [메시지 처리 흐름](#메시지-처리-흐름)
 - [API 명세](#api-명세)
 - [로컬 실행](#로컬-실행)
+- [Docker Compose 실행](#docker-compose-실행)
 - [Redis 다중 인스턴스 검증](#redis-다중-인스턴스-검증)
 - [개발 로드맵](#개발-로드맵)
 
@@ -20,8 +21,9 @@
 - **실시간 통신:** WebSocket 연결 위에서 STOMP를 이용해 채팅 메시지를 송수신합니다.
 - **인증과 권한:** HTTP 세션으로 사용자를 인증하고, 채팅방 참여 여부를 서버에서 검증합니다.
 - **데이터 영속화:** 사용자, 채팅방, 참여 정보와 메시지를 MySQL에 저장합니다.
-- **확장성 검증:** Redis Pub/Sub, k6, 모니터링 및 배포 자동화를 단계적으로 도입합니다.
-- **설정 관리:** 데이터베이스 접속 정보는 환경 변수로 관리하고 비밀 정보는 저장소에 커밋하지 않습니다.
+- **확장성 검증:** Redis Pub/Sub와 다중 Spring Boot 인스턴스를 구성해 분산 메시징을 검증합니다.
+- **운영 환경:** Docker Compose로 MySQL, Redis, Spring Boot 다중 인스턴스를 함께 실행할 수 있도록 구성합니다.
+- **설정 관리:** 데이터베이스와 Redis 접속 정보는 환경 변수로 관리하고 비밀 정보는 저장소에 커밋하지 않습니다.
 
 ## 기술 스택
 
@@ -38,7 +40,8 @@
 | Frontend | React, React Router, Vite |
 | Frontend build | npm, Gradle 연동 |
 | Monitoring dependency | Spring Boot Actuator |
-| Configuration | `.env`, `.env.example` |
+| Container | Docker, Docker Compose |
+| Configuration | `.env` |
 
 ## 기능 구현 현황
 
@@ -54,9 +57,10 @@
 | 인증 접근 제어 | 로그아웃 후 채팅 REST API 및 WebSocket 접근 차단 | 로컬 확인 |
 | 채팅방 권한 | 참여자만 이력 조회·메시지 전송·토픽 구독 가능하도록 서버에서 검증 | 구현 완료 |
 | 분산 메시징 | Redis Pub/Sub 기반 서버 간 메시지 중계 | **구현 및 로컬 검증 완료** |
+| 컨테이너 | Docker Compose 기반 MySQL + Redis + Spring Boot 2개 인스턴스 구성 | **구현 완료** |
 | 성능 테스트 | k6 동시 접속·메시지 부하 테스트 | 예정 |
 | 모니터링 | Actuator 지표 노출 및 Prometheus/Grafana 연동 | 예정 |
-| 배포 | Docker 및 CI/CD | 예정 |
+| 배포 자동화 | GitHub Actions 기반 CI/CD | 예정 |
 
 ## 메시지 처리 흐름
 
@@ -146,7 +150,7 @@ CREATE DATABASE realtime_chat
 
 ### 3. 환경 변수 설정
 
-프로젝트 루트의 `.env.example`을 참고해 `.env` 파일을 생성합니다.
+프로젝트 루트에 `.env` 파일을 생성합니다.
 
 ```properties
 DB_URL=jdbc:mysql://localhost:3306/realtime_chat?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
@@ -185,9 +189,59 @@ Vite 기본 주소는 `http://localhost:5173/ui/#/login`입니다.
 .\gradlew.bat clean test
 ```
 
+## Docker Compose 실행
+
+Docker가 설치되어 있다면 MySQL, Redis, Spring Boot 2개 인스턴스를 한 번에 실행할 수 있습니다.
+
+```powershell
+docker compose up --build -d
+```
+
+구성은 다음과 같습니다.
+
+```text
+                    ┌──────────────┐
+                    │    MySQL     │
+                    │    :3306     │
+                    └──────┬───────┘
+                           │
+             ┌─────────────┴─────────────┐
+             │                           │
+      ┌──────▼──────┐             ┌──────▼──────┐
+      │   app-1     │             │   app-2     │
+      │ host :8080  │             │ host :8081  │
+      └──────┬──────┘             └──────┬──────┘
+             │                           │
+             └──────────┬────────────────┘
+                        │
+                 ┌──────▼──────┐
+                 │    Redis     │
+                 │    :6379     │
+                 └─────────────┘
+```
+
+확인:
+
+- `http://localhost:8080/ui/` → app-1
+- `http://localhost:8081/ui/` → app-2
+
+종료:
+
+```powershell
+docker compose down
+```
+
+MySQL 데이터를 포함해 완전히 초기화하려면:
+
+```powershell
+docker compose down -v
+```
+
 ## Redis 다중 인스턴스 검증
 
-Redis Pub/Sub가 실제로 서버 간 메시지를 중계하는지 확인하려면 **백엔드 인스턴스 2개**를 실행해야 합니다. 브라우저 탭 2개만 실행하는 것은 동일한 서버에 접속하는 것이므로 다중 인스턴스 검증이 아닙니다.
+Redis Pub/Sub가 실제로 서버 간 메시지를 중계하는지 확인하려면 **백엔드 인스턴스 2개**가 필요합니다. 브라우저 탭 2개만 실행하는 것은 동일한 서버에 접속하는 것이므로 다중 인스턴스 검증이 아닙니다.
+
+Docker 없이 직접 실행하려면 다음과 같이 두 인스턴스를 실행합니다.
 
 ### 백엔드
 
@@ -202,8 +256,6 @@ Redis Pub/Sub가 실제로 서버 간 메시지를 중계하는지 확인하려�
 ```powershell
 .\gradlew.bat bootRun --args="--server.port=8081"
 ```
-
-두 인스턴스 모두 동일한 Redis(`localhost:6379`)를 사용합니다.
 
 ### 프론트엔드
 
@@ -225,14 +277,9 @@ $env:FRONTEND_PORT="5174"
 npm run dev
 ```
 
-- 클라이언트 A: `http://localhost:5173/ui/`
-- 클라이언트 B: `http://localhost:5174/ui/`
-
 ### 검증 결과
 
 클라이언트 A가 `8080` 인스턴스를 통해 메시지를 전송하고, 클라이언트 B가 `8081` 인스턴스를 통해 동일한 메시지를 수신하는 것을 확인했습니다.
-
-즉, 다음 구조에서 **서로 다른 Spring Boot 인스턴스 사이의 실시간 메시지 전달이 정상 동작합니다.**
 
 ```text
 Client A
@@ -256,6 +303,7 @@ Client B
 - [x] 인증 사용자 기반 WebSocket 발신자 검증
 - [x] 채팅방 참여 정보 및 서버 측 권한 검사 구현
 - [x] Redis Pub/Sub 메시지 중계 및 다중 인스턴스 로컬 검증
+- [x] Docker Compose 기반 MySQL + Redis + Spring Boot 다중 인스턴스 구성
 - [ ] k6로 동시 접속 및 메시지 처리 성능 측정
 - [ ] Actuator 지표 구성 및 Prometheus/Grafana 연동
-- [ ] Docker 및 CI/CD 기반 배포 자동화
+- [ ] GitHub Actions 기반 CI/CD 및 배포 자동화

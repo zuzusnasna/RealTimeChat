@@ -38,11 +38,22 @@ public class RoomAccessChannelInterceptor implements ChannelInterceptor {
         }
 
         String destination = accessor.getDestination();
-        Pattern pattern = command == StompCommand.SEND
-                ? SEND_DESTINATION
-                : SUBSCRIBE_DESTINATION;
-        if (destination == null || !destination.matches(pattern.pattern())) {
+        if (destination == null) {
             return message;
+        }
+
+        Pattern pattern;
+        if (command == StompCommand.SEND && destination.startsWith("/app/chat/")) {
+            pattern = SEND_DESTINATION;
+        } else if (command == StompCommand.SUBSCRIBE && destination.startsWith("/topic/rooms/")) {
+            pattern = SUBSCRIBE_DESTINATION;
+        } else {
+            return message;
+        }
+
+        Matcher matcher = pattern.matcher(destination);
+        if (!matcher.matches()) {
+            throw new AccessDeniedException("올바르지 않은 채팅방 경로입니다.");
         }
 
         Principal principal = accessor.getUser();
@@ -50,13 +61,8 @@ public class RoomAccessChannelInterceptor implements ChannelInterceptor {
             throw new AccessDeniedException("로그인이 필요합니다.");
         }
 
-        Matcher matcher = pattern.matcher(destination);
-        if (!matcher.matches()) {
-            return message;
-        }
-
         Long roomId = Long.valueOf(matcher.group(1));
-        if (!memberRepository.existsByRoomIdAndUsername(roomId, principal.getName())) {
+        if (!memberRepository.existsByRoom_IdAndUsername(roomId, principal.getName())) {
             throw new AccessDeniedException("채팅방 참여자만 메시지를 전송하거나 구독할 수 있습니다.");
         }
 

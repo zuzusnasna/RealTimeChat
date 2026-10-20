@@ -33,7 +33,6 @@
 | Real-time | WebSocket, STOMP |
 | Database | MySQL 8 |
 | Distributed messaging | Redis Pub/Sub (optional) |
-| Distributed messaging | Redis Pub/Sub (optional) |
 | Persistence | Spring Data JPA, Hibernate |
 | Validation | Jakarta Bean Validation |
 | Frontend | React, React Router, Vite |

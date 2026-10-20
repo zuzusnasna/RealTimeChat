@@ -82,3 +82,5 @@ k6 run -e BASE_URL_1=http://localhost:8080 -e BASE_URL_2=http://localhost:8081 k
 - [ ] k6 기반 동시 접속·메시지 부하 테스트 확대
 - [ ] Grafana 알림 규칙 및 대시보드 고도화
 - [ ] GitHub Actions CI/CD 및 배포 자동화
+
+<!-- CI/CD test -->

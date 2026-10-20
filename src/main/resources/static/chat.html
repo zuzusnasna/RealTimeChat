@@ -206,6 +206,13 @@
         if (event.key === 'Enter') sendMessage();
     });
 
+    document.getElementById('logout').addEventListener('click', () => {
+        fetch('/api/auth/logout', { method: 'POST' }).then(() => {
+            client.deactivate();
+            window.location.href = '/login.html';
+        });
+    });
+
     fetch('/api/auth/me').then(async response => {
         if (!response.ok) {
             window.location.href = '/login.html';

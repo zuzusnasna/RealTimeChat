@@ -33,7 +33,7 @@ public class ChatService {
     @Transactional
     public ChatMessageResponse saveMessage(Long roomId, String authenticatedSender, ChatMessage message) {
         String sender = authenticatedSender == null ? "" : authenticatedSender.trim();
-        String content = message.getContent() == null ? "" : message.getContent().trim();
+        String content = message.content() == null ? "" : message.content().trim();
 
         if (sender.isBlank() || sender.length() > 50) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이름은 1~50자로 입력해 주세요.");

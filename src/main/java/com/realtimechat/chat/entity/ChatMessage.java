@@ -2,9 +2,12 @@ package com.realtimechat.chat.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
@@ -25,13 +28,19 @@ public class ChatMessage {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    // Nullable temporarily so messages created before room support remain readable.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id")
+    private ChatRoom room;
+
     protected ChatMessage() {
     }
 
-    public ChatMessage(String sender, String content, LocalDateTime createdAt) {
+    public ChatMessage(String sender, String content, LocalDateTime createdAt, ChatRoom room) {
         this.sender = sender;
         this.content = content;
         this.createdAt = createdAt;
+        this.room = room;
     }
 
     public Long getId() {
@@ -48,5 +57,9 @@ public class ChatMessage {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public ChatRoom getRoom() {
+        return room;
     }
 }

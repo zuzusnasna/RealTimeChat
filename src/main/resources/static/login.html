@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RealTimeChat - 로그인</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 420px; margin: 64px auto; padding: 0 20px; color: #222; }
+        form { display: grid; gap: 12px; }
+        input, button { box-sizing: border-box; width: 100%; padding: 12px; }
+        button { cursor: pointer; }
+        .switch { display: flex; gap: 8px; margin: 20px 0; }
+        .switch button { flex: 1; }
+        #message { min-height: 24px; color: #b42318; }
+        .hint { color: #666; font-size: 13px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+<h1>RealTimeChat</h1>
+<p>아이디로 로그인하거나 새 계정을 만들어 주세요.</p>
+<div class="switch">
+    <button id="loginMode" type="button">로그인</button>
+    <button id="signupMode" type="button">회원가입</button>
+</div>
+<form id="authForm">
+    <label for="username">아이디</label>
+    <input id="username" name="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_-]+" autocomplete="username" required>
+    <label for="password">비밀번호</label>
+    <input id="password" name="password" type="password" minlength="8" maxlength="72" autocomplete="current-password" required>
+    <p class="hint">아이디는 영문·숫자·밑줄·하이픈 3~30자, 비밀번호는 8~72자입니다.</p>
+    <button id="submit" type="submit">로그인</button>
+</form>
+<p id="message" role="status"></p>
+<script>
+    const form = document.getElementById('authForm');
+    const username = document.getElementById('username');
+    const password = document.getElementById('password');
+    const submit = document.getElementById('submit');
+    const message = document.getElementById('message');
+    const loginMode = document.getElementById('loginMode');
+    const signupMode = document.getElementById('signupMode');
+    let mode = 'login';
+
+    function setMode(nextMode) {
+        mode = nextMode;
+        submit.textContent = mode === 'login' ? '로그인' : '회원가입';
+        password.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+        message.textContent = '';
+    }
+
+    loginMode.addEventListener('click', () => setMode('login'));
+    signupMode.addEventListener('click', () => setMode('signup'));
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        submit.disabled = true;
+        message.textContent = '';
+        try {
+            const response = await fetch('/api/auth/' + mode, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username.value.trim(), password: password.value })
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(body.detail || body.message || '요청을 처리하지 못했습니다.');
+            }
+            if (mode === 'signup') {
+                setMode('login');
+                password.value = '';
+                message.style.color = 'green';
+                message.textContent = '회원가입이 완료되었습니다. 로그인해 주세요.';
+                return;
+            }
+            window.location.replace('/chat.html');
+        } catch (error) {
+            message.style.color = '#b42318';
+            message.textContent = error.message;
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+    fetch('/api/auth/me').then(response => {
+        if (response.ok) window.location.replace('/chat.html');
+    }).catch(() => {});
+</script>
+</body>
+</html>

@@ -92,8 +92,8 @@
 | Method | Endpoint | 설명 |
 |---|---|---|
 | `GET` | `/api/rooms` | 채팅방 목록 조회 |
-| `POST` | `/api/rooms` | 채팅방 생성 |
-| `GET` | `/api/rooms/{roomId}/messages` | 특정 채팅방의 최근 메시지 조회 |
+| `POST` | `/api/rooms` | 채팅방 생성 (생성자는 자동 참여) |
+| `POST` | `/api/rooms/{roomId}/join` | 채팅방 참여 |\n| `GET` | `/api/rooms/{roomId}/messages` | 참여 중인 채팅방의 최근 메시지 조회 |
 
 ### WebSocket / STOMP
 

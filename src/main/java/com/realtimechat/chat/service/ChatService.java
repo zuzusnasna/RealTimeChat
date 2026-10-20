@@ -4,6 +4,7 @@ import com.realtimechat.chat.dto.ChatMessage;
 import com.realtimechat.chat.dto.ChatMessageResponse;
 import com.realtimechat.chat.entity.ChatRoom;
 import com.realtimechat.chat.repository.ChatMessageRepository;
+import com.realtimechat.chat.repository.ChatRoomMemberRepository;
 import com.realtimechat.chat.repository.ChatRoomRepository;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,13 +22,16 @@ public class ChatService {
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
+    private final ChatRoomMemberRepository memberRepository;
 
     public ChatService(
             ChatMessageRepository chatMessageRepository,
-            ChatRoomRepository chatRoomRepository
+            ChatRoomRepository chatRoomRepository,
+            ChatRoomMemberRepository memberRepository
     ) {
         this.chatMessageRepository = chatMessageRepository;
         this.chatRoomRepository = chatRoomRepository;
+        this.memberRepository = memberRepository;
     }
 
     @Transactional
@@ -40,6 +44,9 @@ public class ChatService {
         }
         if (content.isBlank() || content.length() > 1000) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "메시지는 1~1000자로 입력해 주세요.");
+        }
+        if (!memberRepository.existsByRoom_IdAndUsername(roomId, sender)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "채팅방 참여자만 메시지를 전송할 수 있습니다.");
         }
 
         ChatRoom room = chatRoomRepository.findById(roomId)
@@ -58,9 +65,12 @@ public class ChatService {
     }
 
     @Transactional(readOnly = true)
-    public List<ChatMessageResponse> getHistory(Long roomId) {
+    public List<ChatMessageResponse> getHistory(Long roomId, String username) {
         if (!chatRoomRepository.existsById(roomId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다.");
+        }
+        if (!memberRepository.existsByRoom_IdAndUsername(roomId, username)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "채팅방 참여자만 메시지 내역을 조회할 수 있습니다.");
         }
 
         return chatMessageRepository.findByRoomIdOrderByCreatedAtDesc(

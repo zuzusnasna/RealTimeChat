@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,6 +47,12 @@ public class ChatRoomController {
     @PostMapping("/{roomId}/join")
     public ChatRoomResponse joinRoom(@PathVariable Long roomId, Principal principal) {
         return chatRoomService.joinRoom(roomId, principal.getName());
+    }
+
+    @DeleteMapping("/{roomId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteRoom(@PathVariable Long roomId, Principal principal) {
+        chatRoomService.deleteRoom(roomId, principal.getName());
     }
 
     @GetMapping("/{roomId}/messages")

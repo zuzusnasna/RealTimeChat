@@ -37,6 +37,27 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+def frontendDir = file("$projectDir/frontend")
+
+tasks.register('installFrontendDependencies', Exec) {
+	workingDir frontendDir
+	commandLine 'npm', 'install'
+	inputs.file("$frontendDir/package.json")
+	outputs.file("$frontendDir/package-lock.json")
+}
+
+tasks.register('buildFrontend', Exec) {
+	dependsOn 'installFrontendDependencies'
+	workingDir frontendDir
+	commandLine 'npm', 'run', 'build'
+	inputs.files(fileTree("$frontendDir/src"), file("$frontendDir/index.html"), file("$frontendDir/vite.config.js"), file("$frontendDir/package.json"))
+	outputs.dir("$projectDir/src/main/resources/static/ui")
+}
+
+tasks.named('processResources') {
+	dependsOn 'buildFrontend'
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }

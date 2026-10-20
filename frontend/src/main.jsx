@@ -58,8 +58,8 @@ function LoginPage() {
       <a className="wordmark" href="#/login"><span className="brand-mark">R</span> RealTimeChat</a>
       <div className="auth-intro">
         <p className="overline">실시간 채팅</p>
-        <h1>대화를<br />바로 시작하세요.</h1>
-        <p>로그인하고 채팅방에 참여하세요.</p>
+        <h1>채팅방에서<br />대화하세요.</h1>
+        <p>로그인 후 채팅방을 선택하세요.</p>
       </div>
       <div className="auth-aside-foot">RealTimeChat</div>
     </aside>

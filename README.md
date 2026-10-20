@@ -65,6 +65,16 @@ docker compose down
 
 환경 설정, 로그 확인, 포트 충돌 해결 및 데이터 초기화 방법은 **[Docker Compose 사용 가이드](docs/DOCKER.md)** 를 참고하세요.
 
+## 부하 테스트
+
+[k6 설치](https://grafana.com/docs/k6/latest/set-up/install-k6/) 후 두 인스턴스에 대한 WebSocket 채팅 부하 테스트를 실행할 수 있습니다.
+
+```powershell
+k6 run -e BASE_URL_1=http://localhost:8080 -e BASE_URL_2=http://localhost:8081 k6/chat-load.js
+```
+
+테스트 설정과 지표 해석은 **[k6 부하 테스트 가이드](docs/K6.md)** 를 참고하세요.
+
 ## 구현 현황 및 로드맵
 
 - [x] 세션 기반 인증 및 채팅방 권한 검증

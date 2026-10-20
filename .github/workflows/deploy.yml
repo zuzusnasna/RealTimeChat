@@ -15,42 +15,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify Java and locate Docker CLI
+      - name: Verify Java and Docker
         shell: powershell
         run: |
           java -version
-
-          $candidates = @(
-            (Get-Command docker.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1),
-            "$env:ProgramFiles\Docker\Docker\resources\bin\docker.exe",
-            "$env:ProgramFiles\Docker\Docker\resources\docker.exe"
-          ) | Where-Object { $_ -and (Test-Path $_ -PathType Leaf) }
-
-          if (-not $candidates) {
-            $found = Get-ChildItem "$env:ProgramFiles\Docker", "$env:ProgramData\DockerDesktop" -Filter docker.exe -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -ExpandProperty FullName -First 1
-            if ($found) { $candidates = @($found) }
+          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
+          if (-not (Test-Path $dockerExe -PathType Leaf)) {
+            throw "Docker CLI not found at configured path: $dockerExe"
           }
-
-          if (-not $candidates) {
-            throw "Docker CLI was not found. Check the Docker.exe path on the runner machine."
-          }
-
-          $dockerExe = $candidates[0]
-          $dockerDir = Split-Path $dockerExe
-          Write-Host "Docker CLI found: $dockerExe"
-          Add-Content -Path $env:GITHUB_PATH -Value $dockerDir
-
+          Add-Content -Path $env:GITHUB_PATH -Value (Split-Path $dockerExe)
           & $dockerExe version
           if ($LASTEXITCODE -ne 0) {
-            throw "Docker CLI exists, but cannot reach the Docker engine. Ensure Docker Desktop is running and the runner service account has access."
+            throw "Docker CLI was found but Docker Engine is unavailable to the runner service account."
           }
 
       - name: Start MySQL and Redis
         shell: powershell
         run: |
-          $dockerExe = (Get-ChildItem "$env:ProgramFiles\Docker", "$env:ProgramData\DockerDesktop" -Filter docker.exe -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName -First 1)
+          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
           if (-not $dockerExe) { $dockerExe = (Get-Command docker.exe -ErrorAction Stop).Source }
           & $dockerExe compose up -d mysql redis
           if ($LASTEXITCODE -ne 0) { throw "docker compose up failed with exit code $LASTEXITCODE" }
@@ -58,8 +40,7 @@ jobs:
       - name: Wait for MySQL and Redis health
         shell: powershell
         run: |
-          $dockerExe = (Get-ChildItem "$env:ProgramFiles\Docker", "$env:ProgramData\DockerDesktop" -Filter docker.exe -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName -First 1)
+          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
           if (-not $dockerExe) { $dockerExe = (Get-Command docker.exe -ErrorAction Stop).Source }
 
           $services = @("realtime-chat-mysql", "realtime-chat-redis")
@@ -95,8 +76,7 @@ jobs:
       - name: Rebuild and restart containers
         shell: powershell
         run: |
-          $dockerExe = (Get-ChildItem "$env:ProgramFiles\Docker", "$env:ProgramData\DockerDesktop" -Filter docker.exe -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName -First 1)
+          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
           if (-not $dockerExe) { $dockerExe = (Get-Command docker.exe -ErrorAction Stop).Source }
           & $dockerExe compose up -d --build
           if ($LASTEXITCODE -ne 0) { throw "docker compose up --build failed with exit code $LASTEXITCODE" }
@@ -104,7 +84,6 @@ jobs:
       - name: Show container status
         shell: powershell
         run: |
-          $dockerExe = (Get-ChildItem "$env:ProgramFiles\Docker", "$env:ProgramData\DockerDesktop" -Filter docker.exe -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName -First 1)
+          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
           if (-not $dockerExe) { $dockerExe = (Get-Command docker.exe -ErrorAction Stop).Source }
           & $dockerExe compose ps

@@ -205,7 +205,7 @@
         if (event.key === 'Enter') sendMessage();
     });
 
-    client.activate();
+    fetch('/api/auth/me').then(response => { if (!response.ok) window.location.href = '/login.html'; else client.activate(); }).catch(() => { window.location.href = '/login.html'; });
 </script>
 </body>
 </html>

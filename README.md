@@ -1,8 +1,8 @@
 # RealTimeChat
 
-**Java 21 · Spring Boot · React · WebSocket/STOMP · MySQL · Redis Pub/Sub · Docker**
+**Java 21 · Spring Boot · React · WebSocket/STOMP · MySQL · Redis Pub/Sub · Docker · Prometheus · Grafana**
 
-Spring Boot 기반 실시간 채팅 서비스입니다. 세션 인증과 채팅방 권한 검증을 구현하고, Redis Pub/Sub 및 Docker Compose 다중 인스턴스 환경에서 서버 간 메시지 전달을 확인합니다.
+Spring Boot 기반 실시간 채팅 서비스입니다. 세션 인증과 채팅방 권한 검증을 구현하고, Redis Pub/Sub 및 Docker Compose 다중 인스턴스 환경에서 서버 간 메시지 전달을 확인합니다. Prometheus와 Grafana로 두 인스턴스의 애플리케이션 메트릭을 수집·관찰합니다.
 
 ## 주요 기능
 
@@ -12,6 +12,7 @@ Spring Boot 기반 실시간 채팅 서비스입니다. 세션 인증과 채팅�
 - 서버 측 채팅방 참여 권한 검증 및 인증 사용자 기반 발신자 처리
 - Redis Pub/Sub 기반 Spring Boot 인스턴스 간 메시지 중계
 - Docker Compose 기반 MySQL·Redis·Spring Boot 2개 인스턴스 실행
+- Prometheus 기반 메트릭 수집 및 Grafana 모니터링 환경
 
 ## 기술 스택
 
@@ -23,7 +24,7 @@ Spring Boot 기반 실시간 채팅 서비스입니다. 세션 인증과 채팅�
 | Messaging | Redis Pub/Sub |
 | Frontend | React, React Router, Vite |
 | Container | Docker, Docker Compose |
-| Monitoring | Spring Boot Actuator |
+| Monitoring | Spring Boot Actuator, Micrometer, Prometheus, Grafana |
 
 ## 메시지 처리 구조
 
@@ -55,15 +56,10 @@ docker compose up --build -d
 
 - app-1: http://localhost:8080/ui/
 - app-2: http://localhost:8081/ui/
+- Grafana: http://localhost:3000
+- Prometheus: http://localhost:9091
 
-상태 확인 및 종료:
-
-```powershell
-docker compose ps
-docker compose down
-```
-
-환경 설정, 로그 확인, 포트 충돌 해결 및 데이터 초기화 방법은 **[Docker Compose 사용 가이드](docs/DOCKER.md)** 를 참고하세요.
+환경 설정, 로그 확인, 포트 충돌 해결 및 데이터 초기화 방법은 **[Docker Compose 사용 가이드](docs/DOCKER.md)** 를 참고하세요. 모니터링 구성과 지표 확인 방법은 **[Prometheus + Grafana 가이드](docs/MONITORING.md)** 를 참고하세요.
 
 ## 부하 테스트
 
@@ -81,6 +77,7 @@ k6 run -e BASE_URL_1=http://localhost:8080 -e BASE_URL_2=http://localhost:8081 k
 - [x] WebSocket/STOMP 실시간 채팅 및 메시지 영속화
 - [x] Redis Pub/Sub 서버 간 메시지 중계
 - [x] Docker Compose 기반 다중 인스턴스 구성 및 로컬 검증
-- [ ] k6 기반 동시 접속·메시지 부하 테스트
-- [ ] Actuator + Prometheus + Grafana 모니터링
+- [x] Prometheus 메트릭 수집 및 Grafana 연결 구성
+- [ ] k6 기반 동시 접속·메시지 부하 테스트 확대
+- [ ] Grafana 대시보드 및 알림 규칙 고도화
 - [ ] GitHub Actions CI/CD 및 배포 자동화

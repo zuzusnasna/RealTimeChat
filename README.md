@@ -78,6 +78,7 @@ k6 run -e BASE_URL_1=http://localhost:8080 -e BASE_URL_2=http://localhost:8081 k
 - [x] Redis Pub/Sub 서버 간 메시지 중계
 - [x] Docker Compose 기반 다중 인스턴스 구성 및 로컬 검증
 - [x] Prometheus 메트릭 수집 및 Grafana 연결 구성
+- [x] 기본 Grafana 대시보드 자동 등록
 - [ ] k6 기반 동시 접속·메시지 부하 테스트 확대
-- [ ] Grafana 대시보드 및 알림 규칙 고도화
+- [ ] Grafana 알림 규칙 및 대시보드 고도화
 - [ ] GitHub Actions CI/CD 및 배포 자동화

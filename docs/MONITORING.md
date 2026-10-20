@@ -21,7 +21,7 @@ docker compose ps
 - Grafana: http://localhost:3000 (기본 계정 `admin` / `admin`, 최초 로그인 후 변경 권장)
 - Prometheus: http://localhost:9091
 
-Grafana 데이터 소스는 provisioning으로 자동 등록됩니다.
+Grafana 데이터 소스와 **RealTimeChat - Application Monitoring** 대시보드는 provisioning으로 자동 등록됩니다.
 
 ## 수집 상태 확인
 

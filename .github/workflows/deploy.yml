@@ -15,9 +15,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify Java
+      - name: Verify Java and configure Docker PATH
         shell: powershell
-        run: java -version
+        run: |
+          java -version
+
+          $dockerCommand = Get-Command docker -ErrorAction SilentlyContinue
+          if ($dockerCommand) {
+            $dockerDir = Split-Path $dockerCommand.Source
+          } else {
+            $candidates = @(
+              "$env:ProgramFiles\Docker\Docker\resources\bin\docker.exe",
+              "$env:ProgramFiles\Docker\Docker\resources",
+              "$env:ProgramData\DockerDesktop\version-bin\docker.exe"
+            )
+            $dockerExe = $candidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
+            if (-not $dockerExe) {
+              throw "Docker CLI was not found. Install Docker Desktop or add the folder containing docker.exe to the system PATH, then restart the GitHub Actions Runner service."
+            }
+            $dockerDir = Split-Path $dockerExe
+          }
+
+          Write-Host "Using Docker CLI from: $dockerDir"
+          Add-Content -Path $env:GITHUB_PATH -Value $dockerDir
+
+          $dockerExePath = Join-Path $dockerDir "docker.exe"
+          & $dockerExePath version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Docker CLI was found, but it could not communicate with the Docker engine. Ensure Docker Desktop/Engine is running and accessible to the runner service."
+          }
 
       - name: Start MySQL and Redis
         shell: powershell

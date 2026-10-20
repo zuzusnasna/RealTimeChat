@@ -6,6 +6,7 @@ import com.realtimechat.chat.dto.ChatMessageResponse;
 import com.realtimechat.chat.service.ChatRoomService;
 import com.realtimechat.chat.service.ChatService;
 import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,18 +30,29 @@ public class ChatRoomController {
     }
 
     @GetMapping
-    public List<ChatRoomResponse> getRooms() {
-        return chatRoomService.getRooms();
+    public List<ChatRoomResponse> getRooms(Principal principal) {
+        return chatRoomService.getRooms(principal.getName());
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ChatRoomResponse createRoom(@Valid @RequestBody ChatRoomRequest request) {
-        return chatRoomService.createRoom(request);
+    public ChatRoomResponse createRoom(
+            @Valid @RequestBody ChatRoomRequest request,
+            Principal principal
+    ) {
+        return chatRoomService.createRoom(request, principal.getName());
+    }
+
+    @PostMapping("/{roomId}/join")
+    public ChatRoomResponse joinRoom(@PathVariable Long roomId, Principal principal) {
+        return chatRoomService.joinRoom(roomId, principal.getName());
     }
 
     @GetMapping("/{roomId}/messages")
-    public List<ChatMessageResponse> getMessages(@PathVariable Long roomId) {
-        return chatService.getHistory(roomId);
+    public List<ChatMessageResponse> getMessages(
+            @PathVariable Long roomId,
+            Principal principal
+    ) {
+        return chatService.getHistory(roomId, principal.getName());
     }
 }

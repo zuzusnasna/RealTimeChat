@@ -10,7 +10,8 @@ const PASSWORD = 'LoadTest!123';
 const sentMessages = new Counter('chat_messages_sent');
 const receivedMessages = new Counter('chat_messages_received');
 const websocketConnected = new Rate('websocket_connected');
-const messageLatency = new Trend('chat_message_delivery_ms', true);
+const crossInstanceDeliveries = new Counter('chat_cross_instance_deliveries');
+const crossInstanceLatency = new Trend('chat_cross_instance_delivery_ms', true);
 
 export const options = {
   scenarios: {
@@ -22,7 +23,7 @@ export const options = {
         { duration: '40s', target: 5 },
         { duration: '20s', target: 0 },
       ],
-      gracefulRampDown: '5s',
+      gracefulRampDown: '16s',
     },
   },
   thresholds: {
@@ -100,7 +101,8 @@ export default function (data) {
   const subscription = `/topic/rooms/${data.roomId}`;
   let connected = false;
   let subscribed = false;
-  const sentAt = {};
+  let messageSequence = 0;
+  const originInstance = baseUrl === BASE_URL_1 ? 'app-1' : 'app-2';
 
   const response = ws.connect(
     wsUrl,
@@ -119,19 +121,19 @@ export default function (data) {
           );
           socket.setTimeout(() => {
             subscribed = true;
-            const messageId = `${__VU}-${Date.now()}`;
-            sentAt[messageId] = Date.now();
+            const messageId = `${__VU}-${Date.now()}-${++messageSequence}`;
+            const sentAt = Date.now();
             socket.send(
-              `SEND\ndestination:${destination}\ncontent-type:application/json\n\n${JSON.stringify({ content: `k6 message ${messageId}` })}\u0000`,
+              `SEND\ndestination:${destination}\ncontent-type:application/json\n\n${JSON.stringify({ content: `k6|${originInstance}|${messageId}|${sentAt}` })}\u0000`,
             );
             sentMessages.add(1);
           }, 1000);
           socket.setInterval(() => {
             if (!subscribed) return;
-            const messageId = `${__VU}-${Date.now()}`;
-            sentAt[messageId] = Date.now();
+            const messageId = `${__VU}-${Date.now()}-${++messageSequence}`;
+            const sentAt = Date.now();
             socket.send(
-              `SEND\ndestination:${destination}\ncontent-type:application/json\n\n${JSON.stringify({ content: `k6 message ${messageId}` })}\u0000`,
+              `SEND\ndestination:${destination}\ncontent-type:application/json\n\n${JSON.stringify({ content: `k6|${originInstance}|${messageId}|${sentAt}` })}\u0000`,
             );
             sentMessages.add(1);
           }, 2000);
@@ -142,10 +144,10 @@ export default function (data) {
             const body = frame.slice(bodyStart + 2).replace(/\u0000$/, '');
             try {
               const message = JSON.parse(body);
-              const match = /^k6 message (.+)$/.exec(message.content || '');
-              if (match && sentAt[match[1]]) {
-                messageLatency.add(Date.now() - sentAt[match[1]]);
-                delete sentAt[match[1]];
+              const match = /^k6\|([^|]+)\|([^|]+)\|(\d+)$/.exec(message.content || '');
+              if (match && match[1] !== originInstance) {
+                crossInstanceDeliveries.add(1);
+                crossInstanceLatency.add(Date.now() - Number(match[3]));
               }
             } catch (_) {
               // Ignore non-JSON STOMP frames; delivery is still counted.

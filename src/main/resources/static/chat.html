@@ -184,13 +184,12 @@
     }
 
     function sendMessage() {
-        const sender = senderInput.value.trim();
         const content = contentInput.value.trim();
-        if (!sender || !content || !activeRoomId || !client.connected) return;
+        if (!content || !activeRoomId || !client.connected) return;
 
         client.publish({
             destination: '/app/chat/' + activeRoomId,
-            body: JSON.stringify({ sender, content })
+            body: JSON.stringify({ content })
         });
         contentInput.value = '';
         contentInput.focus();

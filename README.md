@@ -1,6 +1,6 @@
 # RealTimeChat
 
-**Java 21 · Spring Boot · React · React Router · WebSocket/STOMP · MySQL** 기반의 실시간 채팅 서비스입니다.
+**Java 21 · Spring Boot · React · React Router · WebSocket/STOMP · MySQL · Redis Pub/Sub** 기반의 실시간 채팅 서비스입니다.
 
 회원가입과 세션 인증부터 채팅방별 접근 제어까지 구현하고, 이후 Redis 기반 분산 메시지 처리와 부하 테스트를 통해 확장성과 운영 역량을 검증하는 백엔드 프로젝트입니다.
 
@@ -32,6 +32,7 @@
 | Security | Spring Security, BCrypt, HTTP Session |
 | Real-time | WebSocket, STOMP |
 | Database | MySQL 8 |
+| Distributed messaging | Redis Pub/Sub (optional) |
 | Persistence | Spring Data JPA, Hibernate |
 | Validation | Jakarta Bean Validation |
 | Frontend | React, React Router, Vite |
@@ -52,7 +53,7 @@
 | 발신자 검증 | 클라이언트가 보낸 발신자 대신 인증된 세션 사용자 사용 | 로컬 확인 |
 | 인증 접근 제어 | 로그아웃 후 채팅 REST API 및 WebSocket 접근 차단 | 로컬 확인 |
 | 채팅방 권한 | 참여자만 이력 조회·메시지 전송·토픽 구독 가능하도록 서버에서 검증 | 구현 완료, 로컬 검증 필요 |
-| 분산 메시징 | Redis Pub/Sub | 예정 |
+| 분산 메시징 | Redis Pub/Sub 기반 서버 간 메시지 중계 | 구현, Redis 환경 검증 필요 |
 | 성능 테스트 | k6 동시 접속·메시지 부하 테스트 | 예정 |
 | 모니터링 | Actuator 지표 노출 및 Prometheus/Grafana 연동 | 예정 |
 | 배포 | Docker 및 CI/CD | 예정 |
@@ -67,8 +68,9 @@
 2. 클라이언트가 `/ws` 엔드포인트에 연결합니다.
 3. 채팅방 참여자가 메시지 내용을 `/app/chat/{roomId}`로 전송합니다.
 4. 서버는 세션에서 인증된 사용자 이름과 메시지 내용을 사용해 메시지를 저장합니다.
-5. 서버는 `/topic/rooms/{roomId}`를 구독 중인 클라이언트에 메시지를 전달합니다.
-6. 이전 메시지는 REST API로 조회합니다.
+5. `CHAT_REDIS_ENABLED=true`이면 서버가 Redis Pub/Sub 채널 `realtime-chat:messages`로 저장된 메시지를 발행합니다.
+6. 각 애플리케이션 인스턴스는 해당 채널을 구독하고, 자신에게 연결된 클라이언트에 `/topic/rooms/{roomId}`로 메시지를 전달합니다. Redis가 비활성화되면 기존 인프로세스 브로커를 사용합니다.
+7. 이전 메시지는 REST API로 조회합니다.
 
 ### 채팅방 권한 확인
 
@@ -121,6 +123,7 @@
 
 - JDK 21
 - MySQL 8
+- Redis 7 (선택 사항; 다중 서버 메시지 중계를 확인할 때 필요)
 - Git
 - Node.js 및 npm
 
@@ -149,6 +152,12 @@ CREATE DATABASE realtime_chat
 DB_URL=jdbc:mysql://localhost:3306/realtime_chat?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
 DB_USERNAME=root
 DB_PASSWORD=your_mysql_password
+
+# Redis를 사용할 경우에만 활성화
+CHAT_REDIS_ENABLED=false
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
 ```
 
 로컬 MySQL 계정 정보에 맞게 값을 변경하세요. 실제 비밀번호가 들어 있는 `.env` 파일은 커밋하지 마세요.
@@ -202,7 +211,8 @@ Vite 개발 서버 주소: http://localhost:5173/ui/#/login
 - [x] 인증 사용자 기반 WebSocket 발신자 검증
 - [x] 채팅방 참여 정보 및 서버 측 권한 검사 구현
 - [ ] 채팅방 참여 권한 로컬 테스트 및 예외 처리 보완
-- [ ] Redis Pub/Sub으로 다중 애플리케이션 인스턴스 간 메시지 전달
+- [x] Redis Pub/Sub 메시지 중계 코드 및 선택적 설정 추가
+- [ ] Redis를 실행한 상태에서 다중 애플리케이션 인스턴스 간 메시지 전달 검증
 - [ ] k6로 동시 접속 및 메시지 처리 성능 측정
 - [ ] Actuator 지표 구성 및 Prometheus/Grafana 연동
 - [ ] Docker 및 CI/CD 기반 배포 자동화

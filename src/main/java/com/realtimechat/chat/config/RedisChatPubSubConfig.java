@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
-import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 
 @Configuration
 @ConditionalOnProperty(name = "chat.redis.enabled", havingValue = "true")
@@ -21,17 +20,12 @@ public class RedisChatPubSubConfig {
     @Bean
     RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
-            MessageListenerAdapter chatMessageListenerAdapter,
+            RedisChatMessageListener listener,
             ChannelTopic chatMessageTopic
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(chatMessageListenerAdapter, chatMessageTopic);
+        container.addMessageListener(listener, chatMessageTopic);
         return container;
-    }
-
-    @Bean
-    MessageListenerAdapter chatMessageListenerAdapter(RedisChatMessageListener listener) {
-        return new MessageListenerAdapter(listener, "onMessage");
     }
 }

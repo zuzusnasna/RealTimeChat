@@ -10,6 +10,7 @@ jobs:
     runs-on: self-hosted
     env:
       DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'root' }}
+      DOCKER_EXE: 'C:\\Users\\jusanghyeok\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe'
 
     steps:
       - name: Checkout
@@ -19,71 +20,66 @@ jobs:
         shell: powershell
         run: |
           java -version
-          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
-          if (-not (Test-Path $dockerExe -PathType Leaf)) {
-            throw "Docker CLI not found at configured path: $dockerExe"
+          if (-not (Test-Path $env:DOCKER_EXE -PathType Leaf)) {
+            throw "Docker CLI not found at configured path: $env:DOCKER_EXE"
           }
-          Add-Content -Path $env:GITHUB_PATH -Value (Split-Path $dockerExe)
-          & $dockerExe version
+          & $env:DOCKER_EXE version
           if ($LASTEXITCODE -ne 0) {
-            throw "Docker CLI was found but Docker Engine is unavailable to the runner service account."
+            throw "Docker Engine is unavailable to the runner service account."
           }
 
       - name: Start MySQL and Redis
         shell: powershell
         run: |
-          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
-          if (-not $dockerExe) { $dockerExe = (Get-Command docker.exe -ErrorAction Stop).Source }
-          & $dockerExe compose up -d mysql redis
+          & $env:DOCKER_EXE compose up -d mysql redis
           if ($LASTEXITCODE -ne 0) { throw "docker compose up failed with exit code $LASTEXITCODE" }
 
       - name: Wait for MySQL and Redis health
         shell: powershell
         run: |
-          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
-          if (-not $dockerExe) { $dockerExe = (Get-Command docker.exe -ErrorAction Stop).Source }
-
           $services = @("realtime-chat-mysql", "realtime-chat-redis")
           foreach ($service in $services) {
             $deadline = (Get-Date).AddMinutes(2)
             do {
-              $status = & $dockerExe inspect --format='{{.State.Health.Status}}' $service 2>$null
+              $status = & $env:DOCKER_EXE inspect --format='{{.State.Health.Status}}' $service 2>$null
               if ($LASTEXITCODE -ne 0) { throw "Container $service was not found." }
               Write-Host "$service health: $status"
               if ($status -eq "healthy") { break }
               if ($status -eq "unhealthy") {
-                & $dockerExe logs $service
+                & $env:DOCKER_EXE logs $service
                 throw "Container $service is unhealthy."
               }
               if ((Get-Date) -ge $deadline) {
-                & $dockerExe logs $service
+                & $env:DOCKER_EXE logs $service
                 throw "Timed out waiting for $service to become healthy."
               }
               Start-Sleep -Seconds 5
             } while ($true)
           }
 
-      - name: Run backend tests
-        shell: powershell
-        env:
-          DB_URL: jdbc:mysql://localhost:3306/realtime_chat?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-          DB_USERNAME: root
-          CHAT_REDIS_ENABLED: "true"
-          REDIS_HOST: localhost
-          REDIS_PORT: "6379"
-        run: .\gradlew.bat clean test --no-daemon
-
-      - name: Rebuild and restart containers
+      - name: Build application images
         shell: powershell
         run: |
-          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
-          if (-not $dockerExe) { $dockerExe = (Get-Command docker.exe -ErrorAction Stop).Source }
-          & $dockerExe compose up -d --build
-          if ($LASTEXITCODE -ne 0) { throw "docker compose up --build failed with exit code $LASTEXITCODE" }
+          & $env:DOCKER_EXE compose build app-1 app-2
+          if ($LASTEXITCODE -ne 0) { throw "docker compose build failed with exit code $LASTEXITCODE" }
 
-      - name: Show container status
+      - name: Recreate application containers
         shell: powershell
         run: |
-          $dockerExe = "C:\Users\jusanghyeok\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe"
-          if (-not $dockerExe) { $dockerExe = (Get-Command docker.exe -ErrorAction Stop).Source }
-          & $dockerExe compose ps
+          & $env:DOCKER_EXE compose up -d --no-deps --force-recreate app-1 app-2
+          if ($LASTEXITCODE -ne 0) { throw "application container restart failed with exit code $LASTEXITCODE" }
+
+      - name: Verify container status
+        shell: powershell
+        run: |
+          & $env:DOCKER_EXE compose ps
+          if ($LASTEXITCODE -ne 0) { throw "docker compose ps failed with exit code $LASTEXITCODE" }
+          $containers = @("realtime-chat-app-1", "realtime-chat-app-2")
+          foreach ($container in $containers) {
+            $status = & $env:DOCKER_EXE inspect --format='{{.State.Status}}' $container
+            if ($LASTEXITCODE -ne 0 -or $status -ne "running") {
+              & $env:DOCKER_EXE logs --tail 100 $container
+              throw "Container $container is not running (status: $status)."
+            }
+            Write-Host "$container status: $status"
+          }

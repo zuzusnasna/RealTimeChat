@@ -1,6 +1,6 @@
 # RealTimeChat
 
-**Java 21 · Spring Boot · WebSocket/STOMP · MySQL** 기반의 실시간 채팅 서비스입니다.
+**Java 21 · Spring Boot · React · React Router · WebSocket/STOMP · MySQL** 기반의 실시간 채팅 서비스입니다.
 
 회원가입과 세션 인증부터 채팅방별 접근 제어까지 구현하고, 이후 Redis 기반 분산 메시지 처리와 부하 테스트를 통해 확장성과 운영 역량을 검증하는 백엔드 프로젝트입니다.
 
@@ -34,7 +34,8 @@
 | Database | MySQL 8 |
 | Persistence | Spring Data JPA, Hibernate |
 | Validation | Jakarta Bean Validation |
-| Build | Gradle |
+| Frontend | React, React Router, Vite |
+| Frontend build | npm, Gradle 연동 |
 | Monitoring dependency | Spring Boot Actuator |
 | Configuration | `.env`, `.env.example` |
 
@@ -121,6 +122,7 @@
 - JDK 21
 - MySQL 8
 - Git
+- Node.js 및 npm
 
 ### 1. 저장소 내려받기
 
@@ -159,10 +161,23 @@ Windows PowerShell:
 .\\gradlew.bat bootRun
 ```
 
-실행 후 브라우저에서 접속합니다.
+실행하면 Gradle이 `frontend`의 React 앱을 빌드해 Spring 정적 리소스에 포함합니다. 브라우저에서 아래 주소로 접속합니다.
 
+- 앱 시작: http://localhost:8080/
 - 로그인 및 회원가입: http://localhost:8080/login.html
 - 채팅 화면: http://localhost:8080/chat.html
+
+화면 전환은 React Router로 관리합니다. 기존 `/login.html`, `/chat.html` 주소는 React 화면으로 이동하는 호환 경로입니다.
+
+프론트엔드만 개발할 때는 별도 터미널에서 실행할 수 있습니다.
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Vite 개발 서버 주소: http://localhost:5173/ui/#/login
 
 테스트 실행:
 

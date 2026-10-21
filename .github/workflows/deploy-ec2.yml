@@ -47,7 +47,7 @@ jobs:
             $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = $keyscanCommand
-            $psi.Arguments = "-T 10 -t ed25519,rsa $($env:EC2_HOST)"
+            $psi.Arguments = '-O KexAlgorithms=curve25519-sha256 -T 10 -t ed25519,rsa ' + $env:EC2_HOST
             $psi.UseShellExecute = $false
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError = $true

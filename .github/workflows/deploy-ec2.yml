@@ -42,15 +42,26 @@ jobs:
               throw "TCP port 22 is unreachable at $($env:EC2_HOST). Check the Elastic IP association, security group, and SSH service."
             }
 
-            # ssh-keyscan emits its SSH banner on stderr. Redirect stderr to prevent
-            # Windows PowerShell 5.1 from treating the native stderr stream as fatal.
-            $keyscanCommand = Get-Command ssh-keyscan -ErrorAction Stop
-            $scanOutput = & $keyscanCommand.Source -T 10 -t ed25519,rsa $env:EC2_HOST 2>$null
-            $scanExitCode = $LASTEXITCODE
-            $scanOutput | Out-File -FilePath $scanPath -Encoding ascii
+            # Run ssh-keyscan through .NET Process to avoid PowerShell 5.1's
+            # native stderr-to-error-record behavior.
+            $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = $keyscanCommand
+            $psi.Arguments = "-T 10 -t ed25519,rsa $($env:EC2_HOST)"
+            $psi.UseShellExecute = $false
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $process = New-Object System.Diagnostics.Process
+            $process.StartInfo = $psi
+            [void]$process.Start()
+            $scanOutput = $process.StandardOutput.ReadToEnd()
+            $scanError = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            $scanExitCode = $process.ExitCode
+            [System.IO.File]::WriteAllText($scanPath, $scanOutput, [System.Text.Encoding]::ASCII)
 
-            if ($scanExitCode -ne 0 -or -not (Test-Path $scanPath) -or (Get-Item $scanPath).Length -eq 0) {
-              throw "TCP/22 is reachable, but ssh-keyscan returned no usable host key for $($env:EC2_HOST). Exit code: $scanExitCode."
+            if ($scanExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($scanOutput)) {
+              throw "TCP/22 is reachable, but ssh-keyscan returned no usable host key for $($env:EC2_HOST). Exit code: $scanExitCode. Details: $scanError"
             }
 
             Copy-Item $scanPath $knownHostsPath -Force

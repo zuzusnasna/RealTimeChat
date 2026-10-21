@@ -31,6 +31,12 @@ jobs:
             if ([string]::IsNullOrWhiteSpace($env:EC2_FINGERPRINT)) { throw "EC2_FINGERPRINT secret is empty." }
 
             [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY.Trim() + [Environment]::NewLine, [System.Text.Encoding]::ASCII)
+            # OpenSSH on Windows rejects private keys readable by other accounts.
+            $runnerIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+            & icacls.exe $keyPath /inheritance:r | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Failed to disable inherited permissions on the SSH private key." }
+            & icacls.exe $keyPath /grant:r "$($runnerIdentity):(R)" | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Failed to grant the runner account read access to the SSH private key." }
 
             $tcp = Test-NetConnection -ComputerName $env:EC2_HOST -Port 22 -WarningAction SilentlyContinue
             if (-not $tcp.TcpTestSucceeded) { throw "TCP port 22 is unreachable at $($env:EC2_HOST)." }

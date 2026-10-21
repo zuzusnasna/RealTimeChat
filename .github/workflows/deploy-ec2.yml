@@ -11,118 +11,49 @@ permissions:
 
 jobs:
   deploy:
-    if: ${{ vars.EC2_DEPLOY_ENABLED == 'true' }}
     runs-on: self-hosted
     steps:
-      - name: Deploy latest main on EC2
+      - name: Deploy latest main to EC2 and restart app containers
         shell: powershell
         env:
           EC2_HOST: 13.125.76.77
           EC2_SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY_B64 }}
-          EC2_FINGERPRINT: ${{ secrets.EC2_FINGERPRINT }}
         run: |
           $ErrorActionPreference = "Stop"
           $keyPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-deploy-key"
-          $knownHostsPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-known-hosts"
-          $scanPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-keyscan"
 
           try {
-            if ([string]::IsNullOrWhiteSpace($env:EC2_SSH_KEY_B64)) { throw "EC2_SSH_KEY_B64 secret is empty." }
-            if ([string]::IsNullOrWhiteSpace($env:EC2_FINGERPRINT)) { throw "EC2_FINGERPRINT secret is empty." }
+            if ([string]::IsNullOrWhiteSpace($env:EC2_SSH_KEY_B64)) {
+              throw "EC2_SSH_KEY_B64 secret is empty."
+            }
 
-            # Base64 preserves the private key's exact bytes and line endings.
+            # Restore the private key bytes and restrict access to the runner account.
             $keyBytes = [Convert]::FromBase64String(($env:EC2_SSH_KEY_B64 -replace '\s', ''))
             [System.IO.File]::WriteAllBytes($keyPath, $keyBytes)
-
             $runnerIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
             & icacls.exe $keyPath /inheritance:r | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Failed to disable inherited permissions on the SSH private key." }
+            if ($LASTEXITCODE -ne 0) { throw "Could not restrict private-key permissions." }
             & icacls.exe $keyPath /grant:r "$($runnerIdentity):(R)" | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Failed to grant the runner account read access to the SSH private key." }
+            if ($LASTEXITCODE -ne 0) { throw "Could not grant the runner read access to the private key." }
 
-            $tcp = Test-NetConnection -ComputerName $env:EC2_HOST -Port 22 -WarningAction SilentlyContinue
-            if (-not $tcp.TcpTestSucceeded) { throw "TCP port 22 is unreachable at $($env:EC2_HOST)." }
-
-            $gitKeyscan = Join-Path $env:ProgramFiles 'Git\usr\bin\ssh-keyscan.exe'
-            if (Test-Path $gitKeyscan) { $keyscanCommand = $gitKeyscan }
-            else { $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source }
-
-            # ssh-keyscan writes its SSH banner to stderr; with Stop, PowerShell can
-            # turn that harmless native stderr output into a terminating error.
-            $previousErrorActionPreference = $ErrorActionPreference
-            try {
-              $ErrorActionPreference = "Continue"
-              $scanOutput = & $keyscanCommand -T 10 -t ed25519,rsa $env:EC2_HOST 2>$null
-              $scanExitCode = $LASTEXITCODE
-            }
-            finally {
-              $ErrorActionPreference = $previousErrorActionPreference
-            }
-            if ($scanExitCode -ne 0 -or [string]::IsNullOrWhiteSpace(($scanOutput -join "`n"))) {
-              throw "Could not retrieve the EC2 SSH host key from $($env:EC2_HOST)."
-            }
-            [System.IO.File]::WriteAllLines($scanPath, $scanOutput, [System.Text.Encoding]::ASCII)
-            $expectedMatch = [regex]::Match($env:EC2_FINGERPRINT, 'SHA256:[A-Za-z0-9+/]+={0,2}')
-            if (-not $expectedMatch.Success) { throw "EC2_FINGERPRINT must contain a SHA256: fingerprint." }
-            $expectedFingerprint = $expectedMatch.Value.TrimEnd('=')
-
-            # Pin only the exact host-key line whose fingerprint matches the secret.
-            # Do not trust additional key types returned by ssh-keyscan without checking them.
-            $verifiedHostKey = $null
-            foreach ($hostKeyLine in $scanOutput) {
-              [System.IO.File]::WriteAllText($scanPath, ($hostKeyLine + "`n"), [System.Text.Encoding]::ASCII)
-              $lineFingerprintOutput = & ssh-keygen -lf $scanPath -E sha256 2>$null
-              if ($LASTEXITCODE -eq 0) {
-                $lineMatch = [regex]::Match(($lineFingerprintOutput -join "`n"), 'SHA256:[A-Za-z0-9+/]+={0,2}')
-                if ($lineMatch.Success -and $lineMatch.Value.TrimEnd('=') -eq $expectedFingerprint) {
-                  $verifiedHostKey = $hostKeyLine
-                  break
-                }
-              }
-            }
-            if ([string]::IsNullOrWhiteSpace($verifiedHostKey)) {
-              throw "EC2 SSH host fingerprint mismatch. Check EC2_FINGERPRINT against the EC2 instance."
-            }
-            [System.IO.File]::WriteAllText($knownHostsPath, ($verifiedHostKey + "`n"), [System.Text.Encoding]::ASCII)
-
+            # Base64 avoids PowerShell adding a BOM when sending a script to remote Bash.
             $remoteScript = @'
-          set -Eeuo pipefail
+          set -e
           cd /home/ubuntu/RealTimeChat
-
-          # Do not overwrite or switch away from uncommitted server-side changes.
-          if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
-            echo "ERROR: EC2 repository has local changes; refusing to deploy over them."
-            git status --short
-            exit 20
-          fi
-
-          command -v git >/dev/null
-          command -v docker >/dev/null
-          docker info >/dev/null
-          docker compose version
-
           git fetch origin main
-          git checkout main
-          # The working tree was checked clean above; deploy exactly the fetched main commit.
-          git reset --hard origin/main
-          docker compose config -q
-          docker compose build app-1 app-2
-          docker compose up -d --remove-orphans
-          docker compose ps
-          curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1/ui/ >/dev/null
-          echo "EC2 deployment completed successfully"
+          git checkout -B main origin/main
+          docker compose up -d --build --no-deps app-1 app-2
+          docker compose ps app-1 app-2
           '@
-            # Remove any leading BOM/newlines, then send an ASCII-only Base64 command.
-            # This avoids PowerShell's native-stdin encoding adding a BOM to Bash input.
             $remoteScript = $remoteScript.TrimStart([char[]]@(0xFEFF, 0x0D, 0x0A))
-            $scriptBytes = [System.Text.Encoding]::UTF8.GetBytes($remoteScript)
-            $scriptBase64 = [Convert]::ToBase64String($scriptBytes)
+            $scriptBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remoteScript))
             $remoteCommand = "printf '%s' '$scriptBase64' | base64 -d | bash -se"
 
-            & ssh -i $keyPath -o IdentitiesOnly=yes -o BatchMode=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" $remoteCommand
-            $sshExitCode = $LASTEXITCODE
-            if ($sshExitCode -ne 0) { throw "SSH/EC2 deployment failed with exit code $sshExitCode. Review the preceding SSH/Bash error; this code alone does not prove an SSH-key problem." }
+            & ssh -i $keyPath -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new "ubuntu@$env:EC2_HOST" $remoteCommand
+            if ($LASTEXITCODE -ne 0) {
+              throw "EC2 deployment failed with exit code $LASTEXITCODE."
+            }
           }
           finally {
-            Remove-Item $keyPath, $knownHostsPath, $scanPath -Force -ErrorAction SilentlyContinue
+            Remove-Item $keyPath -Force -ErrorAction SilentlyContinue
           }

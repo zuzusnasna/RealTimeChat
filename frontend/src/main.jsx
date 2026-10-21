@@ -184,9 +184,14 @@ function ChatPage() {
       });
       readSubscriptionRef.current = client.subscribe('/topic/rooms/' + roomId + '/read', frame => {
         const receipt = JSON.parse(frame.body);
+        const previousReadId = receipt.previousLastReadMessageId == null
+          ? 0
+          : Number(receipt.previousLastReadMessageId);
+        const lastReadId = Number(receipt.lastReadMessageId);
         setMessages(current => current.map(message => {
+          const messageId = Number(message.id);
           if (message.system || message.sender === receipt.reader ||
-              Number(message.id) > Number(receipt.lastReadMessageId)) return message;
+              messageId <= previousReadId || messageId > lastReadId) return message;
           return { ...message, unreadCount: Math.max(0, Number(message.unreadCount || 0) - 1) };
         }));
       });

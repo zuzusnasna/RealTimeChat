@@ -46,6 +46,8 @@ jobs:
           docker compose ps app-1 app-2
           '@
             $remoteScript = $remoteScript.TrimStart([char[]]@(0xFEFF, 0x0D, 0x0A))
+            # PowerShell here-strings use Windows CRLF; Bash must receive Unix LF only.
+            $remoteScript = $remoteScript -replace "`r`n", "`n" -replace "`r", ""
             $scriptBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remoteScript))
             $remoteCommand = "printf '%s' '$scriptBase64' | base64 -d | bash -se"
 

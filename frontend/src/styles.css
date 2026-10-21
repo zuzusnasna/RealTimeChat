@@ -120,3 +120,62 @@ button:focus-visible, input:focus-visible { outline: 2px solid #8795ff; outline-
   .composer { padding: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(12 16 25 / 58%);
+}
+.profile-dialog {
+  width: min(100%, 420px);
+  padding: 24px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 25%);
+}
+.profile-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.profile-dialog-header h2 { margin: 0; font-size: 22px; }
+.dialog-close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 25px;
+  line-height: 1;
+}
+.profile-account {
+  margin: 18px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.profile-account strong { margin-left: 8px; color: var(--ink); font-weight: 650; }
+.profile-form { display: flex; flex-direction: column; }
+.profile-form label { margin-bottom: 8px; font-size: 12px; font-weight: 650; }
+.profile-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #d8dce4;
+  border-radius: 2px;
+  background: white;
+  color: var(--ink);
+}
+.profile-form input:focus { border-color: var(--accent); outline: 1px solid var(--accent); }
+.profile-help { margin: 8px 0 20px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.profile-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.profile-dialog .notice { margin-bottom: 0; }
+.user-row .logout-button { flex: 0 0 auto; }
+@media (max-width: 720px) {
+  .profile-dialog { padding: 20px; }
+  .user-row { flex-wrap: wrap; }
+}

@@ -11,15 +11,15 @@ permissions:
 
 jobs:
   deploy:
-    if: \${{ vars.EC2_DEPLOY_ENABLED == 'true' }}
+    if: ${{ vars.EC2_DEPLOY_ENABLED == 'true' }}
     runs-on: self-hosted
     steps:
       - name: Deploy latest main on EC2
         shell: powershell
         env:
           EC2_HOST: 13.125.76.77
-          EC2_SSH_KEY: \${{ secrets.EC2_SSH_KEY }}
-          EC2_FINGERPRINT: \${{ secrets.EC2_FINGERPRINT }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_FINGERPRINT: ${{ secrets.EC2_FINGERPRINT }}
         run: |
           $ErrorActionPreference = "Stop"
           $keyPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-deploy-key"
@@ -30,7 +30,24 @@ jobs:
             if ([string]::IsNullOrWhiteSpace($env:EC2_SSH_KEY)) { throw "EC2_SSH_KEY secret is empty." }
             if ([string]::IsNullOrWhiteSpace($env:EC2_FINGERPRINT)) { throw "EC2_FINGERPRINT secret is empty." }
 
-            [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY.Trim() + [Environment]::NewLine, [System.Text.Encoding]::ASCII)
+            # Accept either a normal multiline key or a secret that was stored with literal \n escapes.
+            $keyText = $env:EC2_SSH_KEY.Trim()
+            if ($keyText -notmatch '[\r\n]' -and $keyText.Contains('\n')) {
+              $keyText = $keyText.Replace('\r\n', "`n").Replace('\n', "`n").Replace('\r', "`n")
+            }
+            if (($keyText.StartsWith('"') -and $keyText.EndsWith('"')) -or ($keyText.StartsWith("'") -and $keyText.EndsWith("'"))) {
+              $keyText = $keyText.Substring(1, $keyText.Length - 2)
+            }
+            $keyText = $keyText.Trim()
+            [System.IO.File]::WriteAllText($keyPath, $keyText + [Environment]::NewLine, [System.Text.Encoding]::ASCII)
+
+            # Validate the actual secret file before attempting SSH; never print the key or derived public key.
+            $sshKeygen = (Get-Command ssh-keygen -ErrorAction Stop).Source
+            $null = & $sshKeygen -y -P "" -f $keyPath 2>$null
+            if ($LASTEXITCODE -ne 0) {
+              throw "EC2_SSH_KEY secret cannot be parsed as an unencrypted private key. Replace it with the complete contents of the valid private-key file (not the .pub file); preserve line breaks. Do not paste the key into logs or chat."
+            }
+
             # OpenSSH on Windows rejects private keys readable by other accounts.
             $runnerIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
             & icacls.exe $keyPath /inheritance:r | Out-Null
@@ -66,7 +83,6 @@ jobs:
             $fingerprintOutput = & ssh-keygen -lf $knownHostsPath -E sha256
             $fingerprints = [regex]::Matches(($fingerprintOutput -join [Environment]::NewLine), 'SHA256:[A-Za-z0-9+/]+={0,2}') | ForEach-Object { $_.Value }
 
-            # Extract the SHA256 fingerprint even if the secret contains a prefix, quotes, or ssh-keygen's full output line.
             $expectedMatch = [regex]::Match($env:EC2_FINGERPRINT, 'SHA256:[A-Za-z0-9+/]+={0,2}')
             if (-not $expectedMatch.Success) {
               $safeValueShape = ($env:EC2_FINGERPRINT -replace '[^A-Za-z0-9:_+/=.-]', '?')

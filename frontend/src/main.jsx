@@ -214,6 +214,8 @@ function ChatPage() {
     }
     setMessages([]);
     const client = clientRef.current;
+    let readRefreshTimer = null;
+    let readRefreshVersion = 0;
     if (client?.connected) {
       subscriptionRef.current = client.subscribe('/topic/rooms/' + roomId, frame => {
         const message = JSON.parse(frame.body);
@@ -237,8 +239,6 @@ function ChatPage() {
             .catch(e => setError(e.message));
         }
       });
-      let readRefreshTimer = null;
-      let readRefreshVersion = 0;
       readSubscriptionRef.current = client.subscribe('/topic/rooms/' + roomId + '/read', () => {
         // Read receipts can arrive in bursts when several messages are sent.
         // Coalesce history refreshes and ignore stale responses so an older
@@ -281,6 +281,7 @@ function ChatPage() {
       .catch(e => { if (alive && roomIdRef.current === String(roomId)) setError(e.message); });
     return () => {
       alive = false;
+      if (readRefreshTimer) clearTimeout(readRefreshTimer);
       subscriptionRef.current?.unsubscribe();
       subscriptionRef.current = null;
     };

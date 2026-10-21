@@ -9,6 +9,8 @@ Spring Boot 기반 실시간 채팅 서비스입니다. 세션 인증과 채팅�
 - 회원가입·로그인·로그아웃 및 HTTP Session 인증
 - 채팅방 생성·참여, 메시지 저장 및 이력 조회
 - WebSocket/STOMP 기반 실시간 메시지 송수신
+- 채팅방별 마지막 읽은 메시지 저장 및 메시지별 미읽음 인원 수 표시
+- 읽음 상태 변경 이벤트를 Redis Pub/Sub으로 다중 인스턴스에 전달
 - 서버 측 채팅방 참여 권한 검증 및 인증 사용자 기반 발신자 처리
 - Redis Pub/Sub 기반 Spring Boot 인스턴스 간 메시지 중계
 - Docker Compose 기반 MySQL·Redis·Spring Boot 2개 인스턴스 실행
@@ -76,6 +78,7 @@ k6 run -e BASE_URL_1=http://localhost:8080 -e BASE_URL_2=http://localhost:8081 k
 - [x] 세션 기반 인증 및 채팅방 권한 검증
 - [x] WebSocket/STOMP 실시간 채팅 및 메시지 영속화
 - [x] Redis Pub/Sub 서버 간 메시지 중계
+- [x] 메시지 읽음 처리 및 미읽음 인원 수 표시
 - [x] Docker Compose 기반 다중 인스턴스 구성 및 로컬 검증
 - [x] Prometheus 메트릭 수집 및 Grafana 연결 구성
 - [x] 기본 Grafana 대시보드 자동 등록

@@ -42,14 +42,15 @@ jobs:
               throw "TCP port 22 is unreachable at $($env:EC2_HOST). Check the Elastic IP association, security group, and SSH service."
             }
 
-            # Capture ssh-keyscan stdout and stderr separately using PowerShell redirection.
+            # ssh-keyscan emits its SSH banner on stderr. Redirect stderr to prevent
+            # Windows PowerShell 5.1 from treating the native stderr stream as fatal.
             $keyscanCommand = Get-Command ssh-keyscan -ErrorAction Stop
-            & $keyscanCommand.Source -T 10 -t ed25519,rsa $env:EC2_HOST 1> $scanPath 2> $scanErrorPath
+            $scanOutput = & $keyscanCommand.Source -T 10 -t ed25519,rsa $env:EC2_HOST 2>$null
             $scanExitCode = $LASTEXITCODE
+            $scanOutput | Out-File -FilePath $scanPath -Encoding ascii
 
             if ($scanExitCode -ne 0 -or -not (Test-Path $scanPath) -or (Get-Item $scanPath).Length -eq 0) {
-              $scanError = if (Test-Path $scanErrorPath) { (Get-Content $scanErrorPath -Raw -ErrorAction SilentlyContinue).Trim() } else { "no diagnostic output" }
-              throw "TCP/22 is reachable, but ssh-keyscan failed for $($env:EC2_HOST). Exit code: $scanExitCode. Details: $scanError"
+              throw "TCP/22 is reachable, but ssh-keyscan returned no usable host key for $($env:EC2_HOST). Exit code: $scanExitCode."
             }
 
             Copy-Item $scanPath $knownHostsPath -Force

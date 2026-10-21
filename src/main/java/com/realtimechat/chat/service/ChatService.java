@@ -12,7 +12,6 @@ import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,18 +24,18 @@ public class ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository memberRepository;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final ChatReadReceiptBroadcaster readReceiptBroadcaster;
 
     public ChatService(
             ChatMessageRepository chatMessageRepository,
             ChatRoomRepository chatRoomRepository,
             ChatRoomMemberRepository memberRepository,
-            SimpMessagingTemplate messagingTemplate
+            ChatReadReceiptBroadcaster readReceiptBroadcaster
     ) {
         this.chatMessageRepository = chatMessageRepository;
         this.chatRoomRepository = chatRoomRepository;
         this.memberRepository = memberRepository;
-        this.messagingTemplate = messagingTemplate;
+        this.readReceiptBroadcaster = readReceiptBroadcaster;
     }
 
     @Transactional
@@ -86,7 +85,7 @@ public class ChatService {
 
     @Transactional
     public Long markRoomRead(Long roomId, String username) {
-        ChatRoom room = chatRoomRepository.findById(roomId)
+        chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
         ChatRoomMember member = memberRepository.findByRoom_IdAndUsername(roomId, username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "채팅방 참여자만 읽음 처리할 수 있습니다."));
@@ -98,8 +97,7 @@ public class ChatService {
         member.markReadThrough(latestMessageId);
         memberRepository.save(member);
         if (latestMessageId != null) {
-            messagingTemplate.convertAndSend("/topic/rooms/" + roomId + "/read",
-                    new ReadReceiptEvent(roomId, username, latestMessageId));
+            readReceiptBroadcaster.broadcast(new ReadReceiptEvent(roomId, username, latestMessageId));
         }
         return latestMessageId;
     }

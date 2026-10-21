@@ -1,0 +1,38 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Enable after adding EC2_HOST, EC2_SSH_KEY, and EC2_FINGERPRINT secrets
+    # and setting the repository variable EC2_DEPLOY_ENABLED=true.
+    if: ${{ vars.EC2_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy latest main on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          fingerprint: ${{ secrets.EC2_FINGERPRINT }}
+          script_stop: true
+          script: |
+            set -eu
+            cd /home/ubuntu/RealTimeChat
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            docker compose config -q
+            docker compose build app-1 app-2
+            docker compose up -d --remove-orphans
+            docker compose ps
+            curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1/ui/ >/dev/null
+            echo "EC2 deployment completed successfully"

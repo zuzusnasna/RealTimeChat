@@ -71,15 +71,67 @@ jobs:
             Copy-Item $scanPath $knownHostsPath -Force
             $fingerprintOutput = & ssh-keygen -lf $knownHostsPath -E sha256
             $fingerprints = [regex]::Matches(($fingerprintOutput -join "`n"), 'SHA256:[A-Za-z0-9+/]+={0,2}') | ForEach-Object { $_.Value }
-            $expectedFingerprint = ($env:EC2_FINGERPRINT.Trim() -replace '=+$', '')
-            $matchingFingerprint = $fingerprints | Where-Object { ($_ -replace '=+$', '') -eq $expectedFingerprint }
+            # Accept either a bare SHA256 fingerprint or the full "ssh-keygen -lf" output.
+            $expectedMatch = [regex]::Match($env:EC2_FINGERPRINT, 'SHA256:[A-Za-z0-9+/]+={0,2}')
+            if (-not $expectedMatch.Success) {
+              throw "EC2_FINGERPRINT must contain a SHA256 host fingerprint (SHA256:...)."
+            }
+            $expectedFingerprint = $expectedMatch.Value -replace '=+
+
+            $remoteScript = @'
+          set -eu
+          cd /home/ubuntu/RealTimeChat
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          docker compose config -q
+          docker compose build app-1 app-2
+          docker compose up -d --remove-orphans
+          docker compose ps
+          curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1/ui/ >/dev/null
+          echo "EC2 deployment completed successfully"
+          '@
+
+            $remoteScript | & ssh -i $keyPath -o IdentitiesOnly=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" "bash -se"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Remote EC2 deployment command failed with exit code $LASTEXITCODE."
+            }
+          }
+          finally {
+            Remove-Item $keyPath, $knownHostsPath, $scanPath, $scanErrorPath -Force -ErrorAction SilentlyContinue
+          }
+, ''
+            $matchingFingerprint = $fingerprints | Where-Object { ($_ -replace '=+
+
+            $remoteScript = @'
+          set -eu
+          cd /home/ubuntu/RealTimeChat
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          docker compose config -q
+          docker compose build app-1 app-2
+          docker compose up -d --remove-orphans
+          docker compose ps
+          curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1/ui/ >/dev/null
+          echo "EC2 deployment completed successfully"
+          '@
+
+            $remoteScript | & ssh -i $keyPath -o IdentitiesOnly=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" "bash -se"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Remote EC2 deployment command failed with exit code $LASTEXITCODE."
+            }
+          }
+          finally {
+            Remove-Item $keyPath, $knownHostsPath, $scanPath, $scanErrorPath -Force -ErrorAction SilentlyContinue
+          }
+, '') -eq $expectedFingerprint }
             if (-not $matchingFingerprint) {
               $availableTypes = ($fingerprintOutput | ForEach-Object {
-                if ($_ -match '\\(([^)]+)\\) SHA256:') { $Matches[1] }
+                if ($_ -match '\(([^)]+)\) SHA256:') { $Matches[1] }
               }) -join ', '
               $scannedFingerprints = $fingerprints -join ', '
-              $expectedDisplay = $env:EC2_FINGERPRINT.Trim()
-              throw "EC2 SSH host fingerprint mismatch. Expected: $expectedDisplay. Scanned: $scannedFingerprints. Host key types: $availableTypes. Set EC2_FINGERPRINT to one of the scanned SHA256 values only after verifying the host key in the AWS EC2 console or through a trusted session."
+              throw "EC2 SSH host fingerprint mismatch. Expected fingerprint: $expectedFingerprint. Scanned fingerprints: $scannedFingerprints. Verify the expected fingerprint against the EC2 host through a trusted channel."
             }
 
             $remoteScript = @'

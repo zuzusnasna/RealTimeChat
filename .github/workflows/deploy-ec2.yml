@@ -42,8 +42,8 @@ jobs:
           cd /home/ubuntu/RealTimeChat
           git fetch origin main
           git checkout -B main origin/main
-          docker compose up -d --build --no-deps app-1 app-2
-          docker compose ps app-1 app-2
+          docker compose up -d --build
+          docker compose ps
           '@
             $remoteScript = $remoteScript.TrimStart([char[]]@(0xFEFF, 0x0D, 0x0A))
             # PowerShell here-strings use Windows CRLF; Bash must receive Unix LF only.

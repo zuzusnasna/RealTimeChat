@@ -72,8 +72,21 @@ jobs:
             Copy-Item $scanPath $knownHostsPath -Force
 
             $remoteScript = @'
-          set -eu
+          set -Eeuo pipefail
           cd /home/ubuntu/RealTimeChat
+
+          # Do not overwrite or switch away from uncommitted server-side changes.
+          if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
+            echo "ERROR: EC2 repository has local changes; refusing to deploy over them."
+            git status --short
+            exit 20
+          fi
+
+          command -v git >/dev/null
+          command -v docker >/dev/null
+          docker info >/dev/null
+          docker compose version
+
           git fetch origin main
           git checkout main
           git pull --ff-only origin main

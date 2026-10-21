@@ -182,29 +182,29 @@ function ChatPage() {
             .catch(e => setError(e.message));
         }
       });
-      readSubscriptionRef.current = client.subscribe('/topic/rooms/' + roomId + '/read', frame => {
-        const receipt = JSON.parse(frame.body);
-        const previousReadId = receipt.previousLastReadMessageId == null
-          ? 0
-          : Number(receipt.previousLastReadMessageId);
-        const lastReadId = Number(receipt.lastReadMessageId);
-        setMessages(current => current.map(message => {
-          const messageId = Number(message.id);
-          if (message.system || message.sender === receipt.reader ||
-              messageId <= previousReadId || messageId > lastReadId) return message;
-          return { ...message, unreadCount: Math.max(0, Number(message.unreadCount || 0) - 1) };
-        }));
+      readSubscriptionRef.current = client.subscribe('/topic/rooms/' + roomId + '/read', () => {
+        // The database is the source of truth. Reload counts instead of
+        // decrementing locally, which can drift on duplicate or out-of-order events.
+        if (roomIdRef.current !== String(roomId)) return;
+        request('/api/rooms/' + roomId + '/messages')
+          .then(history => {
+            if (!alive || roomIdRef.current !== String(roomId)) return;
+            setMessages(history.length ? history : [{ system: '첫 메시지를 보내 보세요.' }]);
+          })
+          .catch(e => {
+            if (alive && roomIdRef.current === String(roomId)) setError(e.message);
+          });
       });
     }
-    request('/api/rooms/' + roomId + '/messages').then(async history => {
-      if (!alive) return;
-      setMessages(history.length ? history : [{ system: '첫 메시지를 보내 보세요.' }]);
-      try {
-        await request('/api/rooms/' + roomId + '/read', { method: 'POST' });
-      } catch (e) {
-        if (alive) setError(e.message);
-      }
-    }).catch(e => { if (alive) setError(e.message); });
+    // Persist this user's read position first, then load history using the
+    // committed state so refresh and initial room entry show the same counts.
+    request('/api/rooms/' + roomId + '/read', { method: 'POST' })
+      .then(() => request('/api/rooms/' + roomId + '/messages'))
+      .then(history => {
+        if (!alive || roomIdRef.current !== String(roomId)) return;
+        setMessages(history.length ? history : [{ system: '첫 메시지를 보내 보세요.' }]);
+      })
+      .catch(e => { if (alive && roomIdRef.current === String(roomId)) setError(e.message); });
     return () => {
       alive = false;
       subscriptionRef.current?.unsubscribe();

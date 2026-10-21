@@ -47,8 +47,18 @@ jobs:
             if (Test-Path $gitKeyscan) { $keyscanCommand = $gitKeyscan }
             else { $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source }
 
-            $scanOutput = & $keyscanCommand -T 10 -t ed25519,rsa $env:EC2_HOST 2>$null
-            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($scanOutput -join "`n"))) {
+            # ssh-keyscan writes its SSH banner to stderr; with Stop, PowerShell can
+            # turn that harmless native stderr output into a terminating error.
+            $previousErrorActionPreference = $ErrorActionPreference
+            try {
+              $ErrorActionPreference = "Continue"
+              $scanOutput = & $keyscanCommand -T 10 -t ed25519,rsa $env:EC2_HOST 2>$null
+              $scanExitCode = $LASTEXITCODE
+            }
+            finally {
+              $ErrorActionPreference = $previousErrorActionPreference
+            }
+            if ($scanExitCode -ne 0 -or [string]::IsNullOrWhiteSpace(($scanOutput -join "`n"))) {
               throw "Could not retrieve the EC2 SSH host key from $($env:EC2_HOST)."
             }
             [System.IO.File]::WriteAllLines($scanPath, $scanOutput, [System.Text.Encoding]::ASCII)

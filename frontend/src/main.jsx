@@ -276,7 +276,18 @@ function ChatPage() {
       .then(() => request('/api/rooms/' + roomId + '/messages'))
       .then(history => {
         if (!alive || roomIdRef.current !== String(roomId)) return;
-        setMessages(history.length ? history : [{ system: '첫 메시지를 보내 보세요.' }]);
+        // Initial history can finish after live STOMP events. Merge instead of
+        // replacing the list, otherwise the response can hide newer messages.
+        setMessages(current => {
+          const byId = new Map(
+            history.filter(item => item.id != null).map(item => [String(item.id), item])
+          );
+          current.filter(item => !item.system && item.id != null).forEach(item => {
+            if (!byId.has(String(item.id))) byId.set(String(item.id), item);
+          });
+          const merged = [...byId.values()].sort((a, b) => Number(a.id) - Number(b.id));
+          return merged.length ? merged : [{ system: '첫 메시지를 보내 보세요.' }];
+        });
       })
       .catch(e => { if (alive && roomIdRef.current === String(roomId)) setError(e.message); });
     return () => {

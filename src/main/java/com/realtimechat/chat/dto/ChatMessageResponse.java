@@ -9,7 +9,8 @@ public record ChatMessageResponse(
         String sender,
         String content,
         LocalDateTime createdAt,
-        long unreadCount
+        long unreadCount,
+        String displayName
 ) {
     public static ChatMessageResponse from(ChatMessage message) {
         Long roomId = message.getRoom() == null ? null : message.getRoom().getId();
@@ -19,11 +20,16 @@ public record ChatMessageResponse(
                 message.getSender(),
                 message.getContent(),
                 message.getCreatedAt(),
-                0
+                0,
+                message.getSender()
         );
     }
 
     public ChatMessageResponse withUnreadCount(long count) {
-        return new ChatMessageResponse(id, roomId, sender, content, createdAt, count);
+        return new ChatMessageResponse(id, roomId, sender, content, createdAt, count, displayName);
+    }
+
+    public ChatMessageResponse withDisplayName(String name) {
+        return new ChatMessageResponse(id, roomId, sender, content, createdAt, unreadCount, name);
     }
 }

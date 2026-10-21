@@ -95,10 +95,16 @@ public class ChatService {
                 roomId, PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt"))
         ).stream().findFirst().map(com.realtimechat.chat.entity.ChatMessage::getId).orElse(null);
 
+        Long previousLastReadMessageId = member.getLastReadMessageId();
+        boolean advanced = latestMessageId != null
+                && (previousLastReadMessageId == null || latestMessageId > previousLastReadMessageId);
+
         member.markReadThrough(latestMessageId);
         memberRepository.save(member);
-        if (latestMessageId != null) {
-            readReceiptBroadcaster.broadcast(new ReadReceiptEvent(roomId, username, latestMessageId));
+        if (advanced) {
+            readReceiptBroadcaster.broadcast(new ReadReceiptEvent(
+                    roomId, username, previousLastReadMessageId, latestMessageId
+            ));
         }
         return latestMessageId;
     }
@@ -116,5 +122,10 @@ public class ChatService {
         return message.withUnreadCount(unread);
     }
 
-    public record ReadReceiptEvent(Long roomId, String reader, Long lastReadMessageId) {}
+    public record ReadReceiptEvent(
+            Long roomId,
+            String reader,
+            Long previousLastReadMessageId,
+            Long lastReadMessageId
+    ) {}
 }

@@ -1,0 +1,39 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: realtime-chat-local-mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: realtime_chat
+      MYSQL_ROOT_PASSWORD: local_dev_password
+    command:
+      - --innodb-buffer-pool-size=128M
+      - --performance-schema=OFF
+    volumes:
+      - realtime-chat-local-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-plocal_dev_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: realtime-chat-local-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "60", "1000", "--appendonly", "yes", "--maxmemory", "48mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - realtime-chat-local-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  realtime-chat-local-mysql-data:
+  realtime-chat-local-redis-data:

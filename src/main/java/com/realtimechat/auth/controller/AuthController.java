@@ -3,6 +3,7 @@ package com.realtimechat.auth.controller;
 import com.realtimechat.auth.dto.AuthResponse;
 import com.realtimechat.auth.dto.LoginRequest;
 import com.realtimechat.auth.dto.SignupRequest;
+import com.realtimechat.auth.dto.UpdateProfileRequest;
 import com.realtimechat.auth.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -19,6 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -83,6 +85,14 @@ public class AuthController {
     @GetMapping("/me")
     public AuthResponse me(Authentication authentication) {
         return authService.getCurrentUser(authentication.getName());
+    }
+
+    @PutMapping("/me")
+    public AuthResponse updateProfile(
+            Authentication authentication,
+            @Valid @RequestBody UpdateProfileRequest request
+    ) {
+        return authService.updateProfile(authentication.getName(), request);
     }
 
     @PostMapping("/logout")

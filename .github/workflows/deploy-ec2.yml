@@ -14,25 +14,56 @@ jobs:
     # Enable after adding EC2_HOST, EC2_SSH_KEY, and EC2_FINGERPRINT secrets
     # and setting the repository variable EC2_DEPLOY_ENABLED=true.
     if: ${{ vars.EC2_DEPLOY_ENABLED == 'true' }}
-    runs-on: ubuntu-latest
+    # Reuse the existing Windows self-hosted runner. This allows SSH to remain
+    # restricted to the user's known public IP instead of opening port 22 to
+    # GitHub-hosted runner IP ranges.
+    runs-on: self-hosted
     steps:
       - name: Deploy latest main on EC2
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          fingerprint: ${{ secrets.EC2_FINGERPRINT }}
-          script_stop: true
-          script: |
-            set -eu
-            cd /home/ubuntu/RealTimeChat
-            git fetch origin main
-            git checkout main
-            git pull --ff-only origin main
-            docker compose config -q
-            docker compose build app-1 app-2
-            docker compose up -d --remove-orphans
-            docker compose ps
-            curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1/ui/ >/dev/null
-            echo "EC2 deployment completed successfully"
+        shell: powershell
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_FINGERPRINT: ${{ secrets.EC2_FINGERPRINT }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $keyPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-deploy-key"
+          $knownHostsPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-known-hosts"
+
+          try {
+            [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY, [System.Text.Encoding]::ASCII)
+
+            $scan = & ssh-keyscan -t ed25519 $env:EC2_HOST 2>$null
+            if ($LASTEXITCODE -ne 0 -or -not $scan) {
+              throw "Could not retrieve the EC2 SSH host key. Check EC2_HOST and the security group."
+            }
+            [System.IO.File]::WriteAllText($knownHostsPath, (($scan -join "`n") + "`n"), [System.Text.Encoding]::ASCII)
+
+            $fingerprintOutput = & ssh-keygen -lf $knownHostsPath -E sha256
+            $fingerprintMatch = [regex]::Match(($fingerprintOutput -join "`n"), 'SHA256:[A-Za-z0-9+/]+')
+            if (-not $fingerprintMatch.Success -or $fingerprintMatch.Value -ne $env:EC2_FINGERPRINT) {
+              throw "EC2 SSH host fingerprint does not match EC2_FINGERPRINT. Deployment stopped."
+            }
+
+            $remoteScript = @'
+          set -eu
+          cd /home/ubuntu/RealTimeChat
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          docker compose config -q
+          docker compose build app-1 app-2
+          docker compose up -d --remove-orphans
+          docker compose ps
+          curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1/ui/ >/dev/null
+          echo "EC2 deployment completed successfully"
+          '@
+
+            $remoteScript | & ssh -i $keyPath -o IdentitiesOnly=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" "bash -se"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Remote EC2 deployment command failed with exit code $LASTEXITCODE."
+            }
+          }
+          finally {
+            Remove-Item $keyPath, $knownHostsPath -Force -ErrorAction SilentlyContinue
+          }

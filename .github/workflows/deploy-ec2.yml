@@ -77,7 +77,9 @@ jobs:
               $availableTypes = ($fingerprintOutput | ForEach-Object {
                 if ($_ -match '\\(([^)]+)\\) SHA256:') { $Matches[1] }
               }) -join ', '
-              throw "EC2 SSH host fingerprint mismatch. Scanned host key types: $availableTypes. Confirm EC2_FINGERPRINT is the SHA256 fingerprint of this EC2 instance's SSH host key."
+              $scannedFingerprints = $fingerprints -join ', '
+              $expectedDisplay = $env:EC2_FINGERPRINT.Trim()
+              throw "EC2 SSH host fingerprint mismatch. Expected: $expectedDisplay. Scanned: $scannedFingerprints. Host key types: $availableTypes. Set EC2_FINGERPRINT to one of the scanned SHA256 values only after verifying the host key in the AWS EC2 console or through a trusted session."
             }
 
             $remoteScript = @'

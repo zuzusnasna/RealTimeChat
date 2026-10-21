@@ -10,7 +10,7 @@ services:
       - app-1
       - app-2
     restart: unless-stopped
-    mem_limit: 32m
+    mem_limit: 24m
 
   mysql:
     image: mysql:8.4
@@ -19,7 +19,7 @@ services:
       MYSQL_DATABASE: realtime_chat
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     command:
-      - --innodb-buffer-pool-size=64M
+      - --innodb-buffer-pool-size=48M
       - --performance-schema=OFF
     volumes:
       - mysql-data:/var/lib/mysql
@@ -29,12 +29,12 @@ services:
       timeout: 5s
       retries: 20
     restart: unless-stopped
-    mem_limit: 256m
+    mem_limit: 224m
 
   redis:
     image: redis:7-alpine
     container_name: realtime-chat-redis
-    command: ["redis-server", "--save", "60", "1000", "--appendonly", "yes", "--maxmemory", "48mb", "--maxmemory-policy", "allkeys-lru"]
+    command: ["redis-server", "--save", "60", "1000", "--appendonly", "yes", "--maxmemory", "32mb", "--maxmemory-policy", "allkeys-lru"]
     volumes:
       - redis-data:/data
     healthcheck:
@@ -43,7 +43,7 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
-    mem_limit: 64m
+    mem_limit: 48m
 
   app-1:
     build: .
@@ -58,7 +58,7 @@ services:
       REDIS_PASSWORD: ""
       SERVER_PORT: 8080
       MANAGEMENT_SERVER_PORT: 9090
-      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=32m -Xss512k"
+      JAVA_TOOL_OPTIONS: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=24m -Xss384k -XX:+UseSerialGC"
     expose:
       - "8080"
       - "9090"
@@ -68,7 +68,7 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    mem_limit: 384m
+    mem_limit: 256m
 
   app-2:
     build: .
@@ -83,7 +83,7 @@ services:
       REDIS_PASSWORD: ""
       SERVER_PORT: 8080
       MANAGEMENT_SERVER_PORT: 9090
-      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx192m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=32m -Xss512k"
+      JAVA_TOOL_OPTIONS: "-Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=24m -Xss384k -XX:+UseSerialGC"
     expose:
       - "8080"
       - "9090"
@@ -93,15 +93,16 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    mem_limit: 384m
+    mem_limit: 256m
 
   prometheus:
+    profiles: ["monitoring"]
     image: prom/prometheus:v3.5.0
     container_name: realtime-chat-prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.time=3d
       - --web.listen-address=0.0.0.0:9090
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -110,9 +111,10 @@ services:
       - app-1
       - app-2
     restart: unless-stopped
-    mem_limit: 128m
+    mem_limit: 96m
 
   grafana:
+    profiles: ["monitoring"]
     image: grafana/grafana:12.1.1
     container_name: realtime-chat-grafana
     ports:
@@ -128,7 +130,7 @@ services:
     depends_on:
       - prometheus
     restart: unless-stopped
-    mem_limit: 128m
+    mem_limit: 96m
 
 volumes:
   mysql-data:

@@ -44,10 +44,17 @@ jobs:
 
             # Run ssh-keyscan through .NET Process to avoid PowerShell 5.1's
             # native stderr-to-error-record behavior.
-            $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source
+            # Prefer Git for Windows' bundled OpenSSH tools, which may be newer
+            # than the Windows inbox OpenSSH and understand the EC2 server KEX.
+            $gitKeyscan = Join-Path $env:ProgramFiles 'Git\usr\bin\ssh-keyscan.exe'
+            if (Test-Path $gitKeyscan) {
+              $keyscanCommand = $gitKeyscan
+            } else {
+              $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source
+            }
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = $keyscanCommand
-            $psi.Arguments = '-O KexAlgorithms=curve25519-sha256 -T 10 -t ed25519,rsa ' + $env:EC2_HOST
+            $psi.Arguments = '-T 10 -t ed25519,rsa ' + $env:EC2_HOST
             $psi.UseShellExecute = $false
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError = $true

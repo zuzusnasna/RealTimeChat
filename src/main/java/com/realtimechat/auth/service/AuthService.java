@@ -45,6 +45,9 @@ public class AuthService {
         ChatUser user = repository.findByUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
         String displayName = request.displayName().trim();
+        if (displayName.length() < 2 || displayName.length() > 30) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "닉네임은 2~30자로 입력해 주세요.");
+        }
         if (repository.existsByDisplayNameIgnoreCaseAndUsernameNot(displayName, username)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.");
         }

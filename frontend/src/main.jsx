@@ -217,24 +217,57 @@ function ChatPage() {
     if (client?.connected) {
       subscriptionRef.current = client.subscribe('/topic/rooms/' + roomId, frame => {
         const message = JSON.parse(frame.body);
-        setMessages(current => [...current.filter(item => !item.system), message]);
+        // STOMP handlers can run concurrently on different app instances.
+        // Deduplicate by database ID and sort every live update so late events
+        // cannot leave the visible conversation in arrival order.
+        setMessages(current => {
+          const byId = new Map();
+          current.filter(item => !item.system).forEach(item => {
+            if (item.id != null) byId.set(String(item.id), item);
+          });
+          if (message.id != null) byId.set(String(message.id), message);
+          else byId.set('pending-' + Date.now() + '-' + Math.random(), message);
+          return [...byId.values()].sort((a, b) => {
+            if (a.id != null && b.id != null) return Number(a.id) - Number(b.id);
+            return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+          });
+        });
         if (message.sender !== usernameRef.current) {
           request('/api/rooms/' + roomId + '/read', { method: 'POST' })
             .catch(e => setError(e.message));
         }
       });
+      let readRefreshTimer = null;
+      let readRefreshVersion = 0;
       readSubscriptionRef.current = client.subscribe('/topic/rooms/' + roomId + '/read', () => {
-        // The database is the source of truth. Reload counts instead of
-        // decrementing locally, which can drift on duplicate or out-of-order events.
+        // Read receipts can arrive in bursts when several messages are sent.
+        // Coalesce history refreshes and ignore stale responses so an older
+        // request cannot overwrite a newer conversation snapshot.
         if (roomIdRef.current !== String(roomId)) return;
-        request('/api/rooms/' + roomId + '/messages')
-          .then(history => {
-            if (!alive || roomIdRef.current !== String(roomId)) return;
-            setMessages(history.length ? history : [{ system: '첫 메시지를 보내 보세요.' }]);
-          })
-          .catch(e => {
-            if (alive && roomIdRef.current === String(roomId)) setError(e.message);
-          });
+        if (readRefreshTimer) clearTimeout(readRefreshTimer);
+        readRefreshTimer = setTimeout(() => {
+          const requestVersion = ++readRefreshVersion;
+          request('/api/rooms/' + roomId + '/messages')
+            .then(history => {
+              if (!alive || roomIdRef.current !== String(roomId)
+                  || requestVersion !== readRefreshVersion) return;
+              setMessages(current => {
+                const byId = new Map(
+                  history.filter(item => item.id != null).map(item => [String(item.id), item])
+                );
+                // Keep any live event that arrived after the history request began.
+                current.filter(item => !item.system && item.id != null).forEach(item => {
+                  if (!byId.has(String(item.id))) byId.set(String(item.id), item);
+                });
+                const merged = [...byId.values()].sort((a, b) => Number(a.id) - Number(b.id));
+                return merged.length ? merged : [{ system: '첫 메시지를 보내 보세요.' }];
+              });
+            })
+            .catch(e => {
+              if (alive && roomIdRef.current === String(roomId)
+                  && requestVersion === readRefreshVersion) setError(e.message);
+            });
+        }, 120);
       });
     }
     // Persist this user's read position first, then load history using the

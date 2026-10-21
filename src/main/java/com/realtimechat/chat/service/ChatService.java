@@ -60,7 +60,7 @@ public class ChatService {
                 new com.realtimechat.chat.entity.ChatMessage(sender, content, LocalDateTime.now(), room)
         );
 
-        return withUnreadCount(ChatMessageResponse.from(saved));
+        return withUnreadCount(ChatMessageResponse.from(saved), memberRepository.findByRoom_Id(roomId));
     }
 
     @Transactional(readOnly = true)
@@ -72,13 +72,14 @@ public class ChatService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "채팅방 참여자만 메시지 내역을 조회할 수 있습니다.");
         }
 
+        List<ChatRoomMember> members = memberRepository.findByRoom_Id(roomId);
         return chatMessageRepository.findByRoomIdOrderByCreatedAtDesc(
                         roomId,
                         PageRequest.of(0, HISTORY_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"))
                 )
                 .stream()
                 .map(ChatMessageResponse::from)
-                .map(this::withUnreadCount)
+                .map(message -> withUnreadCount(message, members))
                 .sorted((a, b) -> a.createdAt().compareTo(b.createdAt()))
                 .toList();
     }
@@ -102,10 +103,17 @@ public class ChatService {
         return latestMessageId;
     }
 
-    private ChatMessageResponse withUnreadCount(ChatMessageResponse message) {
+    private ChatMessageResponse withUnreadCount(
+            ChatMessageResponse message,
+            List<ChatRoomMember> members
+    ) {
         if (message.roomId() == null || message.id() == null) return message;
-        return message.withUnreadCount(memberRepository.countUnreadRecipients(
-                message.roomId(), message.sender(), message.id()));
+        long unread = members.stream()
+                .filter(member -> !member.getUsername().equals(message.sender()))
+                .filter(member -> member.getLastReadMessageId() == null
+                        || member.getLastReadMessageId() < message.id())
+                .count();
+        return message.withUnreadCount(unread);
     }
 
     public record ReadReceiptEvent(Long roomId, String reader, Long lastReadMessageId) {}

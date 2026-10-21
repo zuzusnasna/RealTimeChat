@@ -43,9 +43,22 @@ jobs:
 
             # Validate the actual secret file before attempting SSH; never print the key or derived public key.
             $sshKeygen = (Get-Command ssh-keygen -ErrorAction Stop).Source
-            $null = & $sshKeygen -y -P "" -f $keyPath 2>$null
-            if ($LASTEXITCODE -ne 0) {
-              throw "EC2_SSH_KEY secret cannot be parsed as an unencrypted private key. Replace it with the complete contents of the valid private-key file (not the .pub file); preserve line breaks. Do not paste the key into logs or chat."
+            # Use ProcessStartInfo so Windows PowerShell preserves the empty passphrase argument.
+            $keyCheck = New-Object System.Diagnostics.ProcessStartInfo
+            $keyCheck.FileName = $sshKeygen
+            $keyCheck.Arguments = '-y -P "" -f "' + $keyPath + '"'
+            $keyCheck.UseShellExecute = $false
+            $keyCheck.RedirectStandardOutput = $true
+            $keyCheck.RedirectStandardError = $true
+            $keyCheck.CreateNoWindow = $true
+            $keyProcess = New-Object System.Diagnostics.Process
+            $keyProcess.StartInfo = $keyCheck
+            [void]$keyProcess.Start()
+            $keyProcess.StandardOutput.ReadToEnd() | Out-Null
+            $keyCheckError = $keyProcess.StandardError.ReadToEnd()
+            $keyProcess.WaitForExit()
+            if ($keyProcess.ExitCode -ne 0) {
+              throw "EC2_SSH_KEY secret cannot be parsed as an unencrypted private key. ssh-keygen validation failed with exit code $($keyProcess.ExitCode). Replace it with the complete contents of the valid private-key file (not the .pub file); preserve line breaks. Do not paste the key into logs or chat."
             }
 
             # OpenSSH on Windows rejects private keys readable by other accounts.

@@ -19,6 +19,9 @@ public class ChatUser {
     @Column(nullable = false, unique = true, length = 30)
     private String username;
 
+    @Column(length = 30)
+    private String displayName;
+
     @Column(nullable = false, length = 100)
     private String passwordHash;
 
@@ -34,19 +37,13 @@ public class ChatUser {
         this.createdAt = createdAt;
     }
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
+    public String getUsername() { return username; }
+    public String getDisplayName() { return displayName == null || displayName.isBlank() ? username : displayName; }
+    public String getPasswordHash() { return passwordHash; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
 
-    public String getUsername() {
-        return username;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
+    public void updateDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 }

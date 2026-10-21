@@ -298,7 +298,7 @@ function ChatPage() {
                 <div className="message-content">{message.content}</div>
               </article>
               <div className="message-meta">
-                {message.sender === username && Number(message.unreadCount) > 0 && <span className="unread-count" aria-label={message.unreadCount + '명 안 읽음'}>{message.unreadCount}</span>}
+                {Number(message.unreadCount) > 0 && <span className="unread-count" aria-label={message.unreadCount + '명 안 읽음'}>{message.unreadCount}</span>}
                 {message.createdAt && <time className="message-time">{new Date(message.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</time>}
               </div>
             </div>)}

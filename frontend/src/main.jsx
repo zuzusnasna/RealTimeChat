@@ -97,6 +97,7 @@ function ChatPage() {
   const [error, setError] = useState('');
   const clientRef = useRef(null);
   const subscriptionRef = useRef(null);
+  const readSubscriptionRef = useRef(null);
   const roomIdRef = useRef('');
   const usernameRef = useRef('');
   const messageAreaRef = useRef(null);
@@ -142,6 +143,7 @@ function ChatPage() {
     client.activate();
     return () => {
       subscriptionRef.current?.unsubscribe();
+      readSubscriptionRef.current?.unsubscribe();
       client.deactivate();
     };
   }, [loadRooms]);
@@ -157,7 +159,9 @@ function ChatPage() {
     let alive = true;
     roomIdRef.current = roomId;
     subscriptionRef.current?.unsubscribe();
+    readSubscriptionRef.current?.unsubscribe();
     subscriptionRef.current = null;
+    readSubscriptionRef.current = null;
     if (!roomId || !activeRoom) {
       if (!roomId) setMessages([{ system: '채팅방을 선택하거나 새 채팅방을 만들어 주세요.' }]);
       return;
@@ -168,16 +172,30 @@ function ChatPage() {
       return;
     }
     setMessages([]);
-    request('/api/rooms/' + roomId + '/messages').then(history => {
-      if (alive) setMessages(history.length ? history : [{ system: '첫 메시지를 보내 보세요.' }]);
-    }).catch(e => { if (alive) setError(e.message); });
     const client = clientRef.current;
     if (client?.connected) {
       subscriptionRef.current = client.subscribe('/topic/rooms/' + roomId, frame => {
         const message = JSON.parse(frame.body);
         setMessages(current => [...current.filter(item => !item.system), message]);
       });
+      readSubscriptionRef.current = client.subscribe('/topic/rooms/' + roomId + '/read', frame => {
+        const receipt = JSON.parse(frame.body);
+        setMessages(current => current.map(message => {
+          if (message.system || message.sender === receipt.reader ||
+              Number(message.id) > Number(receipt.lastReadMessageId)) return message;
+          return { ...message, unreadCount: Math.max(0, Number(message.unreadCount || 0) - 1) };
+        }));
+      });
     }
+    request('/api/rooms/' + roomId + '/messages').then(async history => {
+      if (!alive) return;
+      setMessages(history.length ? history : [{ system: '첫 메시지를 보내 보세요.' }]);
+      try {
+        await request('/api/rooms/' + roomId + '/read', { method: 'POST' });
+      } catch (e) {
+        if (alive) setError(e.message);
+      }
+    }).catch(e => { if (alive) setError(e.message); });
     return () => {
       alive = false;
       subscriptionRef.current?.unsubscribe();
@@ -270,7 +288,10 @@ function ChatPage() {
                 <div className="message-author">{message.sender === username ? '나' : message.sender}</div>
                 <div className="message-content">{message.content}</div>
               </article>
-              {message.createdAt && <time className="message-time">{new Date(message.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</time>}
+              <div className="message-meta">
+                {message.sender === username && Number(message.unreadCount) > 0 && <span className="unread-count" aria-label={message.unreadCount + '명 안 읽음'}>{message.unreadCount}</span>}
+                {message.createdAt && <time className="message-time">{new Date(message.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</time>}
+              </div>
             </div>)}
       </section>
       <form className="composer" onSubmit={sendMessage}>

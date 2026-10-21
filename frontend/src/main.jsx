@@ -381,7 +381,7 @@ function ChatPage() {
           ? <p className="system-message" key={'system-' + index}>{message.system}</p>
           : <div key={message.id || message.createdAt + '-' + index} className={message.sender === username ? 'message-row own' : 'message-row'}>
               <article className={message.sender === username ? 'message own' : 'message'}>
-                <div className="message-author">{message.sender === username ? '나' : message.sender}</div>
+                <div className="message-author">{message.sender === username ? '나' : (message.displayName || message.sender)}</div>
                 <div className="message-content">{renderMessageContent(message.content)}</div>
               </article>
               <div className="message-meta">

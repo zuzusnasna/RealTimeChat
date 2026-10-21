@@ -60,15 +60,14 @@ jobs:
             $fingerprintOutput = & ssh-keygen -lf $knownHostsPath -E sha256
             $fingerprints = [regex]::Matches(($fingerprintOutput -join [Environment]::NewLine), 'SHA256:[A-Za-z0-9+/]+={0,2}') | ForEach-Object { $_.Value }
 
-            # EC2_FINGERPRINT may contain either the fingerprint alone or the complete ssh-keygen output line.
-            $expectedFingerprint = $null
-            foreach ($part in ($env:EC2_FINGERPRINT -split '\s+')) {
-              if ($part.StartsWith('SHA256:')) { $expectedFingerprint = $part.Trim(); break }
+            # Extract the SHA256 fingerprint even if the secret contains a prefix, quotes, or ssh-keygen's full output line.
+            $expectedMatch = [regex]::Match($env:EC2_FINGERPRINT, 'SHA256:[A-Za-z0-9+/]+={0,2}')
+            if (-not $expectedMatch.Success) {
+              $safeValueShape = ($env:EC2_FINGERPRINT -replace '[^A-Za-z0-9:_+/=.-]', '?')
+              throw "EC2_FINGERPRINT has no SHA256 fingerprint token. Sanitized value shape: $safeValueShape"
             }
-            if ([string]::IsNullOrWhiteSpace($expectedFingerprint)) {
-              throw "EC2_FINGERPRINT must contain a SHA256: fingerprint."
-            }
-            $expectedFingerprint = $expectedFingerprint.TrimEnd('=')
+            $expectedFingerprint = $expectedMatch.Value
+
             $matchingFingerprint = $fingerprints | Where-Object { $_.TrimEnd('=') -eq $expectedFingerprint }
             if (-not $matchingFingerprint) {
               $scanned = $fingerprints -join ', '

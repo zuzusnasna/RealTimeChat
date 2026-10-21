@@ -12,10 +12,8 @@ import com.realtimechat.chat.repository.ChatRoomRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,7 +61,9 @@ public class ChatService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "채팅방 참여자만 메시지를 전송할 수 있습니다.");
         }
 
-        ChatRoom room = chatRoomRepository.findById(roomId)
+        // Lock the room row so requests handled by different app instances
+        // serialize their message writes for this room.
+        ChatRoom room = chatRoomRepository.findByIdForUpdate(roomId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
 
         com.realtimechat.chat.entity.ChatMessage saved = chatMessageRepository.save(
@@ -86,9 +86,9 @@ public class ChatService {
         }
 
         List<ChatRoomMember> members = memberRepository.findByRoom_Id(roomId);
-        List<com.realtimechat.chat.entity.ChatMessage> history = chatMessageRepository.findByRoomIdOrderByCreatedAtDesc(
+        List<com.realtimechat.chat.entity.ChatMessage> history = chatMessageRepository.findByRoomIdOrderByIdDesc(
                 roomId,
-                PageRequest.of(0, HISTORY_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"))
+                PageRequest.of(0, HISTORY_LIMIT)
         );
         Map<String, String> displayNames = userRepository.findAllByUsernameIn(
                         history.stream().map(com.realtimechat.chat.entity.ChatMessage::getSender).distinct().toList()
@@ -98,7 +98,7 @@ public class ChatService {
                 .map(ChatMessageResponse::from)
                 .map(message -> message.withDisplayName(displayNames.getOrDefault(message.sender(), message.sender())))
                 .map(message -> withUnreadCount(message, members))
-                .sorted((a, b) -> a.createdAt().compareTo(b.createdAt()))
+                .sorted((a, b) -> Long.compare(a.id(), b.id()))
                 .toList();
     }
 
@@ -109,8 +109,8 @@ public class ChatService {
         ChatRoomMember member = memberRepository.findByRoom_IdAndUsername(roomId, username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "채팅방 참여자만 읽음 처리할 수 있습니다."));
 
-        Long latestMessageId = chatMessageRepository.findByRoomIdOrderByCreatedAtDesc(
-                roomId, PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt"))
+        Long latestMessageId = chatMessageRepository.findByRoomIdOrderByIdDesc(
+                roomId, PageRequest.of(0, 1)
         ).stream().findFirst().map(com.realtimechat.chat.entity.ChatMessage::getId).orElse(null);
 
         Long previousLastReadMessageId = member.getLastReadMessageId();

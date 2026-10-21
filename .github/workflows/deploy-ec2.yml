@@ -60,7 +60,9 @@ jobs:
             $keyCheckError = $keyProcess.StandardError.ReadToEnd()
             $keyProcess.WaitForExit()
             if ($keyProcess.ExitCode -ne 0) {
-              throw "EC2_SSH_KEY secret cannot be parsed as an unencrypted private key. ssh-keygen validation failed with exit code $($keyProcess.ExitCode). Replace it with the complete contents of the valid private-key file (not the .pub file); preserve line breaks. Do not paste the key into logs or chat."
+              $safeKeyError = ($keyCheckError -replace [regex]::Escape($keyPath), "<private-key-path>").Trim()
+              if ([string]::IsNullOrWhiteSpace($safeKeyError)) { $safeKeyError = "ssh-keygen returned no diagnostic text." }
+              throw "EC2_SSH_KEY validation failed (exit $($keyProcess.ExitCode)): $safeKeyError. Check whether the key is encrypted or the secret formatting differs from the local file. Key contents are not logged."
             }
 
             # OpenSSH on Windows rejects private keys readable by other accounts.

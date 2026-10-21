@@ -177,6 +177,10 @@ function ChatPage() {
       subscriptionRef.current = client.subscribe('/topic/rooms/' + roomId, frame => {
         const message = JSON.parse(frame.body);
         setMessages(current => [...current.filter(item => !item.system), message]);
+        if (message.sender !== usernameRef.current) {
+          request('/api/rooms/' + roomId + '/read', { method: 'POST' })
+            .catch(e => setError(e.message));
+        }
       });
       readSubscriptionRef.current = client.subscribe('/topic/rooms/' + roomId + '/read', frame => {
         const receipt = JSON.parse(frame.body);

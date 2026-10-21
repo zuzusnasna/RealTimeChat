@@ -8,6 +8,7 @@ import com.realtimechat.chat.service.ChatService;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -61,5 +62,12 @@ public class ChatRoomController {
             Principal principal
     ) {
         return chatService.getHistory(roomId, principal.getName());
+    }
+
+    @PostMapping("/{roomId}/read")
+    public Map<String, Object> markRead(@PathVariable Long roomId, Principal principal) {
+        Long lastReadMessageId = chatService.markRoomRead(roomId, principal.getName());
+        return Map.of("roomId", roomId, "lastReadMessageId",
+                lastReadMessageId == null ? 0L : lastReadMessageId);
     }
 }

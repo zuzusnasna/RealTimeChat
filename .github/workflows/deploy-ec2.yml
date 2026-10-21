@@ -11,42 +11,49 @@ permissions:
 
 jobs:
   deploy:
-    # Enable after adding EC2_HOST, EC2_SSH_KEY, and EC2_FINGERPRINT secrets
-    # and setting the repository variable EC2_DEPLOY_ENABLED=true.
     if: ${{ vars.EC2_DEPLOY_ENABLED == 'true' }}
-    # Reuse the existing Windows self-hosted runner. This allows SSH to remain
-    # restricted to the user's known public IP instead of opening port 22 to
-    # GitHub-hosted runner IP ranges.
     runs-on: self-hosted
     steps:
       - name: Deploy latest main on EC2
         shell: powershell
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
+          # Public EC2 address; avoids a malformed EC2_HOST repository secret.
+          EC2_HOST: 13.125.76.77
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_FINGERPRINT: ${{ secrets.EC2_FINGERPRINT }}
         run: |
           $ErrorActionPreference = "Stop"
           $keyPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-deploy-key"
           $knownHostsPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-known-hosts"
+          $scanPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-keyscan"
 
           try {
-            [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY, [System.Text.Encoding]::ASCII)
-
-            # Capture ssh-keyscan stdout to a file to avoid PowerShell native stderr handling.
-            $scanPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-keyscan"
-            & cmd.exe /d /c "ssh-keyscan -T 10 -t ed25519 $($env:EC2_HOST) > `"$scanPath`" 2>NUL"
-            $scanExitCode = $LASTEXITCODE
-            if ($scanExitCode -ne 0 -or -not (Test-Path $scanPath) -or (Get-Item $scanPath).Length -eq 0) {
-              throw "Could not retrieve the EC2 SSH host key. Check EC2_HOST and the security group."
+            if ([string]::IsNullOrWhiteSpace($env:EC2_SSH_KEY)) {
+              throw "EC2_SSH_KEY secret is empty."
             }
-            Copy-Item $scanPath $knownHostsPath -Force
-            Remove-Item $scanPath -Force -ErrorAction SilentlyContinue
+            if ([string]::IsNullOrWhiteSpace($env:EC2_FINGERPRINT)) {
+              throw "EC2_FINGERPRINT secret is empty."
+            }
 
+            [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY.Trim() + "`n", [System.Text.Encoding]::ASCII)
+
+            # Confirm TCP/22 reachability before retrieving the host key.
+            $tcp = Test-NetConnection -ComputerName $env:EC2_HOST -Port 22 -WarningAction SilentlyContinue
+            if (-not $tcp.TcpTestSucceeded) {
+              throw "TCP port 22 is unreachable at $($env:EC2_HOST). Check EC2 status, public IP, and SSH service."
+            }
+
+            # Collect supported host-key types. Keep stdout separate from stderr on Windows PowerShell.
+            & cmd.exe /d /c "ssh-keyscan -T 10 -t ed25519,rsa $($env:EC2_HOST) > `"$scanPath`" 2>NUL"
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $scanPath) -or (Get-Item $scanPath).Length -eq 0) {
+              throw "TCP/22 is reachable, but ssh-keyscan returned no host key for $($env:EC2_HOST)."
+            }
+
+            Copy-Item $scanPath $knownHostsPath -Force
             $fingerprintOutput = & ssh-keygen -lf $knownHostsPath -E sha256
             $fingerprintMatch = [regex]::Match(($fingerprintOutput -join "`n"), 'SHA256:[A-Za-z0-9+/]+')
-            if (-not $fingerprintMatch.Success -or $fingerprintMatch.Value -ne $env:EC2_FINGERPRINT) {
-              throw "EC2 SSH host fingerprint does not match EC2_FINGERPRINT. Deployment stopped."
+            if (-not $fingerprintMatch.Success -or $fingerprintMatch.Value -ne $env:EC2_FINGERPRINT.Trim()) {
+              throw "EC2 SSH host fingerprint mismatch. Verify EC2_FINGERPRINT against the EC2 instance host key."
             }
 
             $remoteScript = @'
@@ -69,5 +76,5 @@ jobs:
             }
           }
           finally {
-            Remove-Item $keyPath, $knownHostsPath -Force -ErrorAction SilentlyContinue
+            Remove-Item $keyPath, $knownHostsPath, $scanPath -Force -ErrorAction SilentlyContinue
           }

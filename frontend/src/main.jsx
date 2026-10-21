@@ -15,6 +15,40 @@ async function request(url, options = {}) {
   return body;
 }
 
+function renderMessageContent(content) {
+  const text = String(content ?? '');
+  const urlPattern = /https?:\/\/[^\s<>"']+|www\.[^\s<>"']+/gi;
+  const nodes = [];
+  let cursor = 0;
+  let match;
+
+  while ((match = urlPattern.exec(text)) !== null) {
+    let url = match[0];
+    const trailing = url.match(/[.,!?;:)\]}]+$/)?.[0] ?? '';
+    if (trailing) url = url.slice(0, -trailing.length);
+    if (!url) continue;
+
+    if (match.index > cursor) nodes.push(text.slice(cursor, match.index));
+    const href = /^www\./i.test(url) ? 'https://' + url : url;
+    nodes.push(
+      <a
+        key={match.index}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="message-link"
+      >
+        {url}
+      </a>
+    );
+    if (trailing) nodes.push(trailing);
+    cursor = match.index + match[0].length;
+  }
+
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes.length ? nodes : text;
+}
+
 function LoginPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState('login');
@@ -295,7 +329,7 @@ function ChatPage() {
           : <div key={message.id || message.createdAt + '-' + index} className={message.sender === username ? 'message-row own' : 'message-row'}>
               <article className={message.sender === username ? 'message own' : 'message'}>
                 <div className="message-author">{message.sender === username ? '나' : message.sender}</div>
-                <div className="message-content">{message.content}</div>
+                <div className="message-content">{renderMessageContent(message.content)}</div>
               </article>
               <div className="message-meta">
                 {Number(message.unreadCount) > 0 && <span className="unread-count" aria-label={message.unreadCount + '명 안 읽음'}>{message.unreadCount}</span>}

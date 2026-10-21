@@ -10,15 +10,15 @@ if (Test-Path $statePath) {
             if ($pidValue) {
                 $process = Get-Process -Id ([int]$pidValue) -ErrorAction SilentlyContinue
                 if ($process) {
-                    # Stop only the process started by start-local.ps1; do not stop unrelated apps.
-                    Stop-Process -Id ([int]$pidValue) -Force -ErrorAction SilentlyContinue
+                    # Kill only the process tree started by the startup script.
+                    & taskkill.exe /PID ([int]$pidValue) /T /F | Out-Null
                 }
             }
         }
     } catch { Write-Warning "Could not fully read the saved process list: $($_.Exception.Message)" }
     Remove-Item $statePath -Force -ErrorAction SilentlyContinue
 } else {
-    Write-Host "No saved local process list found. Checking only whether the local dev ports are in use."
+    Write-Host "No saved local process list found; no app processes will be killed."
 }
 
 Write-Host "Stopping local MySQL and Redis containers..." -ForegroundColor Cyan

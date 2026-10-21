@@ -18,7 +18,7 @@ jobs:
         shell: powershell
         env:
           EC2_HOST: 13.125.76.77
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_SSH_KEY_B64: ${{ secrets.EC2_SSH_KEY_B64 }}
           EC2_FINGERPRINT: ${{ secrets.EC2_FINGERPRINT }}
         run: |
           $ErrorActionPreference = "Stop"
@@ -27,45 +27,13 @@ jobs:
           $scanPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-keyscan"
 
           try {
-            if ([string]::IsNullOrWhiteSpace($env:EC2_SSH_KEY)) { throw "EC2_SSH_KEY secret is empty." }
+            if ([string]::IsNullOrWhiteSpace($env:EC2_SSH_KEY_B64)) { throw "EC2_SSH_KEY_B64 secret is empty." }
             if ([string]::IsNullOrWhiteSpace($env:EC2_FINGERPRINT)) { throw "EC2_FINGERPRINT secret is empty." }
 
-            # Accept either a normal multiline key or a secret that was stored with literal \n escapes.
-            $keyText = $env:EC2_SSH_KEY.Trim()
-            if ($keyText -notmatch '[\r\n]' -and $keyText.Contains('\n')) {
-              $keyText = $keyText.Replace('\r\n', "`n").Replace('\n', "`n").Replace('\r', "`n")
-            }
-            if (($keyText.StartsWith('"') -and $keyText.EndsWith('"')) -or ($keyText.StartsWith("'") -and $keyText.EndsWith("'"))) {
-              $keyText = $keyText.Substring(1, $keyText.Length - 2)
-            }
-            $keyText = $keyText.Trim()
-            [System.IO.File]::WriteAllText($keyPath, $keyText + [Environment]::NewLine, [System.Text.Encoding]::ASCII)
+            # Base64 preserves the private key's exact bytes and line endings.
+            $keyBytes = [Convert]::FromBase64String(($env:EC2_SSH_KEY_B64 -replace '\\s', ''))
+            [System.IO.File]::WriteAllBytes($keyPath, $keyBytes)
 
-            # Validate the actual secret file before attempting SSH; never print the key or derived public key.
-            $sshKeygen = (Get-Command ssh-keygen -ErrorAction Stop).Source
-            # Use ProcessStartInfo so Windows PowerShell preserves the empty passphrase argument.
-            $keyCheck = New-Object System.Diagnostics.ProcessStartInfo
-            $keyCheck.FileName = $sshKeygen
-            $keyCheck.Arguments = '-y -f "' + $keyPath + '"'
-            $keyCheck.UseShellExecute = $false
-            $keyCheck.RedirectStandardInput = $true
-            $keyCheck.RedirectStandardOutput = $true
-            $keyCheck.RedirectStandardError = $true
-            $keyCheck.CreateNoWindow = $true
-            $keyProcess = New-Object System.Diagnostics.Process
-            $keyProcess.StartInfo = $keyCheck
-            [void]$keyProcess.Start()
-            $keyProcess.StandardInput.Close()
-            $keyProcess.StandardOutput.ReadToEnd() | Out-Null
-            $keyCheckError = $keyProcess.StandardError.ReadToEnd()
-            $keyProcess.WaitForExit()
-            if ($keyProcess.ExitCode -ne 0) {
-              $safeKeyError = ($keyCheckError -replace [regex]::Escape($keyPath), "<private-key-path>").Trim()
-              if ([string]::IsNullOrWhiteSpace($safeKeyError)) { $safeKeyError = "ssh-keygen returned no diagnostic text." }
-              throw "EC2_SSH_KEY validation failed (exit $($keyProcess.ExitCode)): $safeKeyError. Check whether the key is encrypted or the secret formatting differs from the local file. Key contents are not logged."
-            }
-
-            # OpenSSH on Windows rejects private keys readable by other accounts.
             $runnerIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
             & icacls.exe $keyPath /inheritance:r | Out-Null
             if ($LASTEXITCODE -ne 0) { throw "Failed to disable inherited permissions on the SSH private key." }
@@ -75,43 +43,23 @@ jobs:
             $tcp = Test-NetConnection -ComputerName $env:EC2_HOST -Port 22 -WarningAction SilentlyContinue
             if (-not $tcp.TcpTestSucceeded) { throw "TCP port 22 is unreachable at $($env:EC2_HOST)." }
 
-            $gitKeyscan = Join-Path $env:ProgramFiles 'Git\usr\bin\ssh-keyscan.exe'
+            $gitKeyscan = Join-Path $env:ProgramFiles 'Git\\usr\\bin\\ssh-keyscan.exe'
             if (Test-Path $gitKeyscan) { $keyscanCommand = $gitKeyscan }
             else { $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source }
 
-            $psi = New-Object System.Diagnostics.ProcessStartInfo
-            $psi.FileName = $keyscanCommand
-            $psi.Arguments = '-T 10 -t ed25519,rsa ' + $env:EC2_HOST
-            $psi.UseShellExecute = $false
-            $psi.RedirectStandardOutput = $true
-            $psi.RedirectStandardError = $true
-            $process = New-Object System.Diagnostics.Process
-            $process.StartInfo = $psi
-            [void]$process.Start()
-            $scanOutput = $process.StandardOutput.ReadToEnd()
-            $scanError = $process.StandardError.ReadToEnd()
-            $process.WaitForExit()
-            if ($process.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($scanOutput)) {
-              throw "ssh-keyscan failed. Exit code: $($process.ExitCode). Details: $scanError"
+            $scanOutput = & $keyscanCommand -T 10 -t ed25519,rsa $env:EC2_HOST 2>$null
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($scanOutput -join "`n"))) {
+              throw "Could not retrieve the EC2 SSH host key from $($env:EC2_HOST)."
             }
-
-            [System.IO.File]::WriteAllText($scanPath, $scanOutput, [System.Text.Encoding]::ASCII)
-            Copy-Item $scanPath $knownHostsPath -Force
-            $fingerprintOutput = & ssh-keygen -lf $knownHostsPath -E sha256
-            $fingerprints = [regex]::Matches(($fingerprintOutput -join [Environment]::NewLine), 'SHA256:[A-Za-z0-9+/]+={0,2}') | ForEach-Object { $_.Value }
-
+            [System.IO.File]::WriteAllLines($scanPath, $scanOutput, [System.Text.Encoding]::ASCII)
+            $fingerprintOutput = & ssh-keygen -lf $scanPath -E sha256
+            $fingerprints = [regex]::Matches(($fingerprintOutput -join "`n"), 'SHA256:[A-Za-z0-9+/]+={0,2}') | ForEach-Object { $_.Value }
             $expectedMatch = [regex]::Match($env:EC2_FINGERPRINT, 'SHA256:[A-Za-z0-9+/]+={0,2}')
-            if (-not $expectedMatch.Success) {
-              $safeValueShape = ($env:EC2_FINGERPRINT -replace '[^A-Za-z0-9:_+/=.-]', '?')
-              throw "EC2_FINGERPRINT has no SHA256 fingerprint token. Sanitized value shape: $safeValueShape"
+            if (-not $expectedMatch.Success) { throw "EC2_FINGERPRINT must contain a SHA256: fingerprint." }
+            if (-not ($fingerprints | Where-Object { $_.TrimEnd('=') -eq $expectedMatch.Value })) {
+              throw "EC2 SSH host fingerprint mismatch. Check EC2_FINGERPRINT against the EC2 instance."
             }
-            $expectedFingerprint = $expectedMatch.Value
-
-            $matchingFingerprint = $fingerprints | Where-Object { $_.TrimEnd('=') -eq $expectedFingerprint }
-            if (-not $matchingFingerprint) {
-              $scanned = $fingerprints -join ', '
-              throw "SSH host fingerprint mismatch. Expected fingerprint: $expectedFingerprint. Scanned fingerprints: $scanned. Verify the expected value against the EC2 host through a trusted channel."
-            }
+            Copy-Item $scanPath $knownHostsPath -Force
 
             $remoteScript = @'
           set -eu
@@ -127,8 +75,8 @@ jobs:
           echo "EC2 deployment completed successfully"
           '@
 
-            $remoteScript | & ssh -i $keyPath -o IdentitiesOnly=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" "bash -se"
-            if ($LASTEXITCODE -ne 0) { throw "Remote EC2 deployment command failed with exit code $LASTEXITCODE." }
+            $remoteScript | & ssh -i $keyPath -o IdentitiesOnly=yes -o BatchMode=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" "bash -se"
+            if ($LASTEXITCODE -ne 0) { throw "SSH/EC2 deployment failed with exit code $LASTEXITCODE. Check that this private key matches a public key in /home/ubuntu/.ssh/authorized_keys." }
           }
           finally {
             Remove-Item $keyPath, $knownHostsPath, $scanPath -Force -ErrorAction SilentlyContinue

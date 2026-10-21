@@ -14,6 +14,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -102,9 +104,21 @@ public class ChatService {
         member.markReadThrough(latestMessageId);
         memberRepository.save(member);
         if (advanced) {
-            readReceiptBroadcaster.broadcast(new ReadReceiptEvent(
+            ReadReceiptEvent event = new ReadReceiptEvent(
                     roomId, username, previousLastReadMessageId, latestMessageId
-            ));
+            );
+            // Publish only after the read position is committed, so subscribers
+            // cannot reload history before the database reflects this receipt.
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        readReceiptBroadcaster.broadcast(event);
+                    }
+                });
+            } else {
+                readReceiptBroadcaster.broadcast(event);
+            }
         }
         return latestMessageId;
     }

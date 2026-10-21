@@ -11,44 +11,34 @@ permissions:
 
 jobs:
   deploy:
-    if: ${{ vars.EC2_DEPLOY_ENABLED == 'true' }}
+    if: \${{ vars.EC2_DEPLOY_ENABLED == 'true' }}
     runs-on: self-hosted
     steps:
       - name: Deploy latest main on EC2
         shell: powershell
         env:
           EC2_HOST: 13.125.76.77
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_FINGERPRINT: ${{ secrets.EC2_FINGERPRINT }}
+          EC2_SSH_KEY: \${{ secrets.EC2_SSH_KEY }}
+          EC2_FINGERPRINT: \${{ secrets.EC2_FINGERPRINT }}
         run: |
           $ErrorActionPreference = "Stop"
           $keyPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-deploy-key"
           $knownHostsPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-known-hosts"
           $scanPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-keyscan"
-          $scanErrorPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-keyscan-error"
 
           try {
-            if ([string]::IsNullOrWhiteSpace($env:EC2_SSH_KEY)) {
-              throw "EC2_SSH_KEY secret is empty."
-            }
-            if ([string]::IsNullOrWhiteSpace($env:EC2_FINGERPRINT)) {
-              throw "EC2_FINGERPRINT secret is empty."
-            }
+            if ([string]::IsNullOrWhiteSpace($env:EC2_SSH_KEY)) { throw "EC2_SSH_KEY secret is empty." }
+            if ([string]::IsNullOrWhiteSpace($env:EC2_FINGERPRINT)) { throw "EC2_FINGERPRINT secret is empty." }
 
-            [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY.Trim() + "`n", [System.Text.Encoding]::ASCII)
+            [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY.Trim() + [Environment]::NewLine, [System.Text.Encoding]::ASCII)
 
             $tcp = Test-NetConnection -ComputerName $env:EC2_HOST -Port 22 -WarningAction SilentlyContinue
-            if (-not $tcp.TcpTestSucceeded) {
-              throw "TCP port 22 is unreachable at $($env:EC2_HOST). Check the Elastic IP association, security group, and SSH service."
-            }
+            if (-not $tcp.TcpTestSucceeded) { throw "TCP port 22 is unreachable at $($env:EC2_HOST)." }
 
-            # Prefer Git for Windows' bundled OpenSSH tools when available.
             $gitKeyscan = Join-Path $env:ProgramFiles 'Git\usr\bin\ssh-keyscan.exe'
-            if (Test-Path $gitKeyscan) {
-              $keyscanCommand = $gitKeyscan
-            } else {
-              $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source
-            }
+            if (Test-Path $gitKeyscan) { $keyscanCommand = $gitKeyscan }
+            else { $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source }
+
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = $keyscanCommand
             $psi.Arguments = '-T 10 -t ed25519,rsa ' + $env:EC2_HOST
@@ -61,77 +51,28 @@ jobs:
             $scanOutput = $process.StandardOutput.ReadToEnd()
             $scanError = $process.StandardError.ReadToEnd()
             $process.WaitForExit()
-            $scanExitCode = $process.ExitCode
-            [System.IO.File]::WriteAllText($scanPath, $scanOutput, [System.Text.Encoding]::ASCII)
-
-            if ($scanExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($scanOutput)) {
-              throw "TCP/22 is reachable, but ssh-keyscan returned no usable host key for $($env:EC2_HOST). Exit code: $scanExitCode. Details: $scanError"
+            if ($process.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($scanOutput)) {
+              throw "ssh-keyscan failed. Exit code: $($process.ExitCode). Details: $scanError"
             }
 
+            [System.IO.File]::WriteAllText($scanPath, $scanOutput, [System.Text.Encoding]::ASCII)
             Copy-Item $scanPath $knownHostsPath -Force
             $fingerprintOutput = & ssh-keygen -lf $knownHostsPath -E sha256
-            $fingerprints = [regex]::Matches(($fingerprintOutput -join "`n"), 'SHA256:[A-Za-z0-9+/]+={0,2}') | ForEach-Object { $_.Value }
-            # Accept either a bare SHA256 fingerprint or the full "ssh-keygen -lf" output.
-            $expectedMatch = [regex]::Match($env:EC2_FINGERPRINT, 'SHA256:[A-Za-z0-9+/]+={0,2}')
-            if (-not $expectedMatch.Success) {
-              throw "EC2_FINGERPRINT must contain a SHA256 host fingerprint (SHA256:...)."
+            $fingerprints = [regex]::Matches(($fingerprintOutput -join [Environment]::NewLine), 'SHA256:[A-Za-z0-9+/]+={0,2}') | ForEach-Object { $_.Value }
+
+            # EC2_FINGERPRINT may contain either the fingerprint alone or the complete ssh-keygen output line.
+            $expectedFingerprint = $null
+            foreach ($part in ($env:EC2_FINGERPRINT -split '\s+')) {
+              if ($part.StartsWith('SHA256:')) { $expectedFingerprint = $part.Trim(); break }
             }
-            $expectedFingerprint = $expectedMatch.Value -replace '=+
-
-            $remoteScript = @'
-          set -eu
-          cd /home/ubuntu/RealTimeChat
-          git fetch origin main
-          git checkout main
-          git pull --ff-only origin main
-          docker compose config -q
-          docker compose build app-1 app-2
-          docker compose up -d --remove-orphans
-          docker compose ps
-          curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1/ui/ >/dev/null
-          echo "EC2 deployment completed successfully"
-          '@
-
-            $remoteScript | & ssh -i $keyPath -o IdentitiesOnly=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" "bash -se"
-            if ($LASTEXITCODE -ne 0) {
-              throw "Remote EC2 deployment command failed with exit code $LASTEXITCODE."
+            if ([string]::IsNullOrWhiteSpace($expectedFingerprint)) {
+              throw "EC2_FINGERPRINT must contain a SHA256: fingerprint."
             }
-          }
-          finally {
-            Remove-Item $keyPath, $knownHostsPath, $scanPath, $scanErrorPath -Force -ErrorAction SilentlyContinue
-          }
-, ''
-            $matchingFingerprint = $fingerprints | Where-Object { ($_ -replace '=+
-
-            $remoteScript = @'
-          set -eu
-          cd /home/ubuntu/RealTimeChat
-          git fetch origin main
-          git checkout main
-          git pull --ff-only origin main
-          docker compose config -q
-          docker compose build app-1 app-2
-          docker compose up -d --remove-orphans
-          docker compose ps
-          curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1/ui/ >/dev/null
-          echo "EC2 deployment completed successfully"
-          '@
-
-            $remoteScript | & ssh -i $keyPath -o IdentitiesOnly=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" "bash -se"
-            if ($LASTEXITCODE -ne 0) {
-              throw "Remote EC2 deployment command failed with exit code $LASTEXITCODE."
-            }
-          }
-          finally {
-            Remove-Item $keyPath, $knownHostsPath, $scanPath, $scanErrorPath -Force -ErrorAction SilentlyContinue
-          }
-, '') -eq $expectedFingerprint }
+            $expectedFingerprint = $expectedFingerprint.TrimEnd('=')
+            $matchingFingerprint = $fingerprints | Where-Object { $_.TrimEnd('=') -eq $expectedFingerprint }
             if (-not $matchingFingerprint) {
-              $availableTypes = ($fingerprintOutput | ForEach-Object {
-                if ($_ -match '\(([^)]+)\) SHA256:') { $Matches[1] }
-              }) -join ', '
-              $scannedFingerprints = $fingerprints -join ', '
-              throw "EC2 SSH host fingerprint mismatch. Expected fingerprint: $expectedFingerprint. Scanned fingerprints: $scannedFingerprints. Verify the expected fingerprint against the EC2 host through a trusted channel."
+              $scanned = $fingerprints -join ', '
+              throw "SSH host fingerprint mismatch. Expected fingerprint: $expectedFingerprint. Scanned fingerprints: $scanned. Verify the expected value against the EC2 host through a trusted channel."
             }
 
             $remoteScript = @'
@@ -149,10 +90,8 @@ jobs:
           '@
 
             $remoteScript | & ssh -i $keyPath -o IdentitiesOnly=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" "bash -se"
-            if ($LASTEXITCODE -ne 0) {
-              throw "Remote EC2 deployment command failed with exit code $LASTEXITCODE."
-            }
+            if ($LASTEXITCODE -ne 0) { throw "Remote EC2 deployment command failed with exit code $LASTEXITCODE." }
           }
           finally {
-            Remove-Item $keyPath, $knownHostsPath, $scanPath, $scanErrorPath -Force -ErrorAction SilentlyContinue
+            Remove-Item $keyPath, $knownHostsPath, $scanPath -Force -ErrorAction SilentlyContinue
           }

@@ -31,7 +31,7 @@ jobs:
             if ([string]::IsNullOrWhiteSpace($env:EC2_FINGERPRINT)) { throw "EC2_FINGERPRINT secret is empty." }
 
             # Base64 preserves the private key's exact bytes and line endings.
-            $keyBytes = [Convert]::FromBase64String(($env:EC2_SSH_KEY_B64 -replace '\\s', ''))
+            $keyBytes = [Convert]::FromBase64String(($env:EC2_SSH_KEY_B64 -replace '\s', ''))
             [System.IO.File]::WriteAllBytes($keyPath, $keyBytes)
 
             $runnerIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -43,7 +43,7 @@ jobs:
             $tcp = Test-NetConnection -ComputerName $env:EC2_HOST -Port 22 -WarningAction SilentlyContinue
             if (-not $tcp.TcpTestSucceeded) { throw "TCP port 22 is unreachable at $($env:EC2_HOST)." }
 
-            $gitKeyscan = Join-Path $env:ProgramFiles 'Git\\usr\\bin\\ssh-keyscan.exe'
+            $gitKeyscan = Join-Path $env:ProgramFiles 'Git\usr\bin\ssh-keyscan.exe'
             if (Test-Path $gitKeyscan) { $keyscanCommand = $gitKeyscan }
             else { $keyscanCommand = (Get-Command ssh-keyscan -ErrorAction Stop).Source }
 
@@ -84,11 +84,16 @@ jobs:
           curl --fail --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1/ui/ >/dev/null
           echo "EC2 deployment completed successfully"
           '@
-            # Ensure the first byte sent to Bash is the first command, never a UTF-8 BOM.
-            $remoteScript = $remoteScript.TrimStart([char]0xFEFF, [char]0x0D, [char]0x0A)
+            # Remove any leading BOM/newlines, then send an ASCII-only Base64 command.
+            # This avoids PowerShell's native-stdin encoding adding a BOM to Bash input.
+            $remoteScript = $remoteScript.TrimStart([char[]]@(0xFEFF, 0x0D, 0x0A))
+            $scriptBytes = [System.Text.Encoding]::UTF8.GetBytes($remoteScript)
+            $scriptBase64 = [Convert]::ToBase64String($scriptBytes)
+            $remoteCommand = "printf '%s' '$scriptBase64' | base64 -d | bash -se"
 
-            $remoteScript | & ssh -i $keyPath -o IdentitiesOnly=yes -o BatchMode=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" "bash -se"
-            if ($LASTEXITCODE -ne 0) { throw "SSH/EC2 deployment failed with exit code $LASTEXITCODE. Check that this private key matches a public key in /home/ubuntu/.ssh/authorized_keys." }
+            & ssh -i $keyPath -o IdentitiesOnly=yes -o BatchMode=yes -o "UserKnownHostsFile=$knownHostsPath" -o StrictHostKeyChecking=yes "ubuntu@$env:EC2_HOST" $remoteCommand
+            $sshExitCode = $LASTEXITCODE
+            if ($sshExitCode -ne 0) { throw "SSH/EC2 deployment failed with exit code $sshExitCode. Review the preceding SSH/Bash error; this code alone does not prove an SSH-key problem." }
           }
           finally {
             Remove-Item $keyPath, $knownHostsPath, $scanPath -Force -ErrorAction SilentlyContinue

@@ -8,6 +8,19 @@ $backendErr = Join-Path $root ".local-backend-error.log"
 $frontendErr = Join-Path $root ".local-frontend-error.log"
 $composeFile = Join-Path $root "docker-compose.local.yml"
 
+function Get-ListenerDetails([int]$Port) {
+    $listeners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    foreach ($listenerPid in ($listeners | Select-Object -ExpandProperty OwningProcess -Unique)) {
+        $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $listenerPid" -ErrorAction SilentlyContinue
+        [PSCustomObject]@{
+            Port = $Port
+            PID = $listenerPid
+            Name = $processInfo.Name
+            CommandLine = $processInfo.CommandLine
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "[1/5] Checking prerequisites..." -ForegroundColor Cyan
 foreach ($command in @("docker", "npm")) {
@@ -48,11 +61,19 @@ if (-not (Test-Path (Join-Path $frontend "node_modules"))) {
     finally { Pop-Location }
 }
 
-Write-Host "[5/5] Starting Spring Boot and React dev server..." -ForegroundColor Cyan
-$backendListener = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue
-$frontendListener = Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
-if ($backendListener) { throw "Port 8080 is already in use. Stop the existing backend, then run this script again." }
-if ($frontendListener) { throw "Port 5173 is already in use. Stop the existing Vite server, then run this script again." }
+Write-Host "[5/5] Checking ports and starting Spring Boot and React..." -ForegroundColor Cyan
+$backendListener = @(Get-ListenerDetails -Port 8080)
+$frontendListener = @(Get-ListenerDetails -Port 5173)
+if ($backendListener.Count -gt 0) {
+    Write-Host "Port 8080 is occupied by:" -ForegroundColor Yellow
+    $backendListener | Format-List | Out-Host
+    throw "Port 8080 is already in use. Run .\stop-local.ps1 to stop this project's processes, then retry. Unrelated processes are not stopped automatically."
+}
+if ($frontendListener.Count -gt 0) {
+    Write-Host "Port 5173 is occupied by:" -ForegroundColor Yellow
+    $frontendListener | Format-List | Out-Host
+    throw "Port 5173 is already in use. Run .\stop-local.ps1 to stop this project's processes, then retry. Unrelated processes are not stopped automatically."
+}
 
 Remove-Item $backendLog, $frontendLog, $backendErr, $frontendErr -Force -ErrorAction SilentlyContinue
 $env:SPRING_PROFILES_ACTIVE = "local"

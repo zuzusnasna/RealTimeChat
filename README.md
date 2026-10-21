@@ -68,12 +68,14 @@ Docker Desktop을 실행하고 프로젝트 루트에서 `.env.example`을 참�
 ### 2. 서비스 시작
 
 ```powershell
-docker compose up --build -d
+docker compose --profile monitoring up --build -d
 docker compose ps
 ```
 
 - 채팅 UI: http://localhost/ui/
-- Grafana: http://localhost:3000 (로컬에서만 접근 가능)
+- Grafana: http://localhost:3000 (로컬에서만 접근 가능; `monitoring` 프로필 실행 시)
+
+EC2 t3.micro처럼 메모리가 작은 환경에서는 기본 `docker compose up --build -d`로 앱·MySQL·Redis만 실행해 메모리 사용량을 줄입니다. Prometheus와 Grafana는 `monitoring` 프로필로 분리했으며, 모니터링이 필요할 때만 `docker compose --profile monitoring up -d`로 실행하세요. 기존에 모니터링 컨테이너가 실행 중인 EC2는 프로필 변경 후 한 번 `docker compose stop grafana prometheus`를 실행해 중지해야 합니다. 앱 JVM 힙도 인스턴스당 128MB로 제한하고 Serial GC를 사용하도록 조정했습니다.
 
 컨테이너 상태와 로그 확인:
 

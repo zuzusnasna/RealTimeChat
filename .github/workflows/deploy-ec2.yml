@@ -39,9 +39,19 @@ jobs:
           set -e
           cd /home/ubuntu/RealTimeChat
 
-          # Always deploy the exact main revision; monitoring is deliberately opt-in.
+          # Preserve server-side edits before switching to the repository revision.
+          # This prevents Git from aborting when docker-compose.yml was tuned on EC2.
           git fetch origin main
+          if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+            git stash push --include-untracked -m "pre-deploy-local-changes-$(date +%Y%m%d%H%M%S)"
+          fi
+
+          # Deploy the exact main revision after safely stashing local changes.
           git checkout -B main origin/main
+          echo "Deploying commit: $(git rev-parse --short HEAD)"
+          git status --short --branch
+          echo "Recent preserved local changes:"
+          git stash list -n 3
 
           # Explicitly start only production services. Profiled monitoring services
           # are not part of this deployment and will not be started by this command.

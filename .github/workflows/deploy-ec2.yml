@@ -17,7 +17,6 @@ jobs:
       - name: Deploy latest main on EC2
         shell: powershell
         env:
-          # Public EC2 address; avoids a malformed EC2_HOST repository secret.
           EC2_HOST: 13.125.76.77
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_FINGERPRINT: ${{ secrets.EC2_FINGERPRINT }}
@@ -26,6 +25,7 @@ jobs:
           $keyPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-deploy-key"
           $knownHostsPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-known-hosts"
           $scanPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-keyscan"
+          $scanErrorPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-keyscan-error"
 
           try {
             if ([string]::IsNullOrWhiteSpace($env:EC2_SSH_KEY)) {
@@ -37,16 +37,19 @@ jobs:
 
             [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY.Trim() + "`n", [System.Text.Encoding]::ASCII)
 
-            # Confirm TCP/22 reachability before retrieving the host key.
             $tcp = Test-NetConnection -ComputerName $env:EC2_HOST -Port 22 -WarningAction SilentlyContinue
             if (-not $tcp.TcpTestSucceeded) {
-              throw "TCP port 22 is unreachable at $($env:EC2_HOST). Check EC2 status, public IP, and SSH service."
+              throw "TCP port 22 is unreachable at $($env:EC2_HOST). Check the Elastic IP association, security group, and SSH service."
             }
 
-            # Collect supported host-key types. Keep stdout separate from stderr on Windows PowerShell.
-            & cmd.exe /d /c "ssh-keyscan -T 10 -t ed25519,rsa $($env:EC2_HOST) > `"$scanPath`" 2>NUL"
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $scanPath) -or (Get-Item $scanPath).Length -eq 0) {
-              throw "TCP/22 is reachable, but ssh-keyscan returned no host key for $($env:EC2_HOST)."
+            # Capture ssh-keyscan stdout and stderr separately using PowerShell redirection.
+            $keyscanCommand = Get-Command ssh-keyscan -ErrorAction Stop
+            & $keyscanCommand.Source -T 10 -t ed25519,rsa $env:EC2_HOST 1> $scanPath 2> $scanErrorPath
+            $scanExitCode = $LASTEXITCODE
+
+            if ($scanExitCode -ne 0 -or -not (Test-Path $scanPath) -or (Get-Item $scanPath).Length -eq 0) {
+              $scanError = if (Test-Path $scanErrorPath) { (Get-Content $scanErrorPath -Raw -ErrorAction SilentlyContinue).Trim() } else { "no diagnostic output" }
+              throw "TCP/22 is reachable, but ssh-keyscan failed for $($env:EC2_HOST). Exit code: $scanExitCode. Details: $scanError"
             }
 
             Copy-Item $scanPath $knownHostsPath -Force
@@ -76,5 +79,5 @@ jobs:
             }
           }
           finally {
-            Remove-Item $keyPath, $knownHostsPath, $scanPath -Force -ErrorAction SilentlyContinue
+            Remove-Item $keyPath, $knownHostsPath, $scanPath, $scanErrorPath -Force -ErrorAction SilentlyContinue
           }

@@ -33,8 +33,14 @@ jobs:
           try {
             [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY, [System.Text.Encoding]::ASCII)
 
+            # Windows PowerShell can treat ssh-keyscan's stderr banner as a terminating error.
+            $previousErrorActionPreference = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
             $scan = & ssh-keyscan -t ed25519 $env:EC2_HOST 2>$null
-            if ($LASTEXITCODE -ne 0 -or -not $scan) {
+            $scanExitCode = $LASTEXITCODE
+            $ErrorActionPreference = $previousErrorActionPreference
+
+            if ($scanExitCode -ne 0 -or -not $scan) {
               throw "Could not retrieve the EC2 SSH host key. Check EC2_HOST and the security group."
             }
             [System.IO.File]::WriteAllText($knownHostsPath, (($scan -join "`n") + "`n"), [System.Text.Encoding]::ASCII)

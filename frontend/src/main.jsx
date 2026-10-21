@@ -121,6 +121,12 @@ function LoginPage() {
 function ChatPage() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileDraft, setProfileDraft] = useState('');
+  const [profileNotice, setProfileNotice] = useState('');
+  const [profileError, setProfileError] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [roomId, setRoomId] = useState('');
   const [roomName, setRoomName] = useState('');
@@ -141,6 +147,7 @@ function ChatPage() {
     request('/api/auth/me').then(user => {
       if (!alive) return;
       setUsername(user.username);
+      setDisplayName(user.displayName || user.username);
       usernameRef.current = user.username;
     }).catch(() => navigate('/login', { replace: true }));
     return () => { alive = false; };
@@ -289,6 +296,33 @@ function ChatPage() {
     setDraft('');
   }
 
+  async function saveProfile(event) {
+    event.preventDefault();
+    const nextName = profileDraft.trim();
+    if (nextName.length < 2 || nextName.length > 30) {
+      setProfileError(true);
+      setProfileNotice('닉네임은 2~30자로 입력해 주세요.');
+      return;
+    }
+    setProfileBusy(true);
+    setProfileNotice('');
+    try {
+      const updated = await request('/api/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify({ displayName: nextName })
+      });
+      setDisplayName(updated.displayName || updated.username);
+      setProfileError(false);
+      setProfileNotice('닉네임을 변경했습니다.');
+      setProfileDraft(updated.displayName || updated.username);
+    } catch (e) {
+      setProfileError(true);
+      setProfileNotice(e.message);
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
   async function logout() {
     try { await request('/api/auth/logout', { method: 'POST' }); } catch {}
     navigate('/login', { replace: true });
@@ -314,9 +348,28 @@ function ChatPage() {
       </nav>
       <div className="sidebar-bottom">
         <div className="connection-line"><span className={connected ? 'status-dot online' : 'status-dot'} />{connection}</div>
-        <div className="user-row"><span className="avatar">{username.slice(0, 1).toUpperCase() || 'U'}</span><span className="user-name">{username}</span><button type="button" className="logout-button" onClick={logout}>로그아웃</button></div>
+        <div className="user-row"><span className="avatar">{(displayName || username).slice(0, 1).toUpperCase() || 'U'}</span><span className="user-name" title={username}>{displayName || username}</span><button type="button" className="logout-button" onClick={() => { setProfileDraft(displayName || username); setProfileNotice(''); setProfileError(false); setProfileOpen(true); }}>프로필</button><button type="button" className="logout-button" onClick={logout}>로그아웃</button></div>
       </div>
     </aside>
+    {profileOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setProfileOpen(false); }}>
+      <section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+        <div className="profile-dialog-header">
+          <div><p className="overline">계정 관리</p><h2 id="profile-title">프로필</h2></div>
+          <button type="button" className="dialog-close" onClick={() => setProfileOpen(false)} aria-label="프로필 닫기">×</button>
+        </div>
+        <p className="profile-account">아이디 <strong>{username}</strong></p>
+        <form onSubmit={saveProfile} className="profile-form">
+          <label htmlFor="profile-display-name">닉네임</label>
+          <input id="profile-display-name" autoFocus minLength={2} maxLength={30} value={profileDraft} onChange={event => setProfileDraft(event.target.value)} required />
+          <p className="profile-help">2~30자까지 입력할 수 있습니다. 아이디는 변경되지 않습니다.</p>
+          <div className="profile-actions">
+            <button type="button" className="outline-button" onClick={() => setProfileOpen(false)}>닫기</button>
+            <button type="submit" className="primary-button" disabled={profileBusy}>{profileBusy ? '저장 중...' : '변경 저장'}</button>
+          </div>
+        </form>
+        {profileNotice && <p className={profileError ? 'notice error' : 'notice'} role="status">{profileNotice}</p>}
+      </section>
+    </div>}
     <section className="chat-main">
       <header className="chat-header">
         <div><p className="overline">채팅</p><h1>{activeRoom?.name || '채팅방 선택'}</h1></div>

@@ -1,5 +1,7 @@
 package com.realtimechat.chat.service;
 
+import com.realtimechat.auth.entity.ChatUser;
+import com.realtimechat.auth.repository.ChatUserRepository;
 import com.realtimechat.chat.dto.ChatMessage;
 import com.realtimechat.chat.dto.ChatMessageResponse;
 import com.realtimechat.chat.entity.ChatRoom;
@@ -9,6 +11,9 @@ import com.realtimechat.chat.repository.ChatRoomMemberRepository;
 import com.realtimechat.chat.repository.ChatRoomRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -27,17 +32,20 @@ public class ChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository memberRepository;
     private final ChatReadReceiptBroadcaster readReceiptBroadcaster;
+    private final ChatUserRepository userRepository;
 
     public ChatService(
             ChatMessageRepository chatMessageRepository,
             ChatRoomRepository chatRoomRepository,
             ChatRoomMemberRepository memberRepository,
-            ChatReadReceiptBroadcaster readReceiptBroadcaster
+            ChatReadReceiptBroadcaster readReceiptBroadcaster,
+            ChatUserRepository userRepository
     ) {
         this.chatMessageRepository = chatMessageRepository;
         this.chatRoomRepository = chatRoomRepository;
         this.memberRepository = memberRepository;
         this.readReceiptBroadcaster = readReceiptBroadcaster;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -62,7 +70,10 @@ public class ChatService {
                 new com.realtimechat.chat.entity.ChatMessage(sender, content, LocalDateTime.now(), room)
         );
 
-        return withUnreadCount(ChatMessageResponse.from(saved), memberRepository.findByRoom_Id(roomId));
+        String displayName = userRepository.findByUsername(sender)
+                .map(ChatUser::getDisplayName)
+                .orElse(sender);
+        return withUnreadCount(ChatMessageResponse.from(saved).withDisplayName(displayName), memberRepository.findByRoom_Id(roomId));
     }
 
     @Transactional(readOnly = true)
@@ -75,12 +86,17 @@ public class ChatService {
         }
 
         List<ChatRoomMember> members = memberRepository.findByRoom_Id(roomId);
-        return chatMessageRepository.findByRoomIdOrderByCreatedAtDesc(
-                        roomId,
-                        PageRequest.of(0, HISTORY_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"))
-                )
-                .stream()
+        List<com.realtimechat.chat.entity.ChatMessage> history = chatMessageRepository.findByRoomIdOrderByCreatedAtDesc(
+                roomId,
+                PageRequest.of(0, HISTORY_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"))
+        );
+        Map<String, String> displayNames = userRepository.findAllByUsernameIn(
+                        history.stream().map(com.realtimechat.chat.entity.ChatMessage::getSender).distinct().toList()
+                ).stream()
+                .collect(Collectors.toMap(ChatUser::getUsername, ChatUser::getDisplayName, (first, ignored) -> first, java.util.LinkedHashMap::new));
+        return history.stream()
                 .map(ChatMessageResponse::from)
+                .map(message -> message.withDisplayName(displayNames.getOrDefault(message.sender(), message.sender())))
                 .map(message -> withUnreadCount(message, members))
                 .sorted((a, b) -> a.createdAt().compareTo(b.createdAt()))
                 .toList();

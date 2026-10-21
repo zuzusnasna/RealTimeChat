@@ -2,6 +2,7 @@ package com.realtimechat.auth.service;
 
 import com.realtimechat.auth.dto.AuthResponse;
 import com.realtimechat.auth.dto.SignupRequest;
+import com.realtimechat.auth.dto.UpdateProfileRequest;
 import com.realtimechat.auth.entity.ChatUser;
 import com.realtimechat.auth.repository.ChatUserRepository;
 import java.time.LocalDateTime;
@@ -25,7 +26,7 @@ public class AuthService {
     public AuthResponse signup(SignupRequest request) {
         String username = request.username().trim().toLowerCase();
         if (repository.existsByUsername(username)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다.");
         }
         ChatUser user = repository.save(new ChatUser(
                 username, encoder.encode(request.password()), LocalDateTime.now()));
@@ -35,11 +36,23 @@ public class AuthService {
     @Transactional(readOnly = true)
     public AuthResponse getCurrentUser(String username) {
         ChatUser user = repository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+        return toResponse(user);
+    }
+
+    @Transactional
+    public AuthResponse updateProfile(String username, UpdateProfileRequest request) {
+        ChatUser user = repository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
+        String displayName = request.displayName().trim();
+        if (repository.existsByDisplayNameIgnoreCaseAndUsernameNot(displayName, username)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.");
+        }
+        user.updateDisplayName(displayName);
         return toResponse(user);
     }
 
     private AuthResponse toResponse(ChatUser user) {
-        return new AuthResponse(user.getUsername(), user.getCreatedAt());
+        return new AuthResponse(user.getUsername(), user.getDisplayName(), user.getCreatedAt());
     }
 }

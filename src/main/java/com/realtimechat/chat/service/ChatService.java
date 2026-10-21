@@ -3,6 +3,7 @@ package com.realtimechat.chat.service;
 import com.realtimechat.chat.dto.ChatMessage;
 import com.realtimechat.chat.dto.ChatMessageResponse;
 import com.realtimechat.chat.entity.ChatRoom;
+import com.realtimechat.chat.entity.ChatRoomMember;
 import com.realtimechat.chat.repository.ChatMessageRepository;
 import com.realtimechat.chat.repository.ChatRoomMemberRepository;
 import com.realtimechat.chat.repository.ChatRoomRepository;
@@ -11,6 +12,7 @@ import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -23,15 +25,18 @@ public class ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository memberRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public ChatService(
             ChatMessageRepository chatMessageRepository,
             ChatRoomRepository chatRoomRepository,
-            ChatRoomMemberRepository memberRepository
+            ChatRoomMemberRepository memberRepository,
+            SimpMessagingTemplate messagingTemplate
     ) {
         this.chatMessageRepository = chatMessageRepository;
         this.chatRoomRepository = chatRoomRepository;
         this.memberRepository = memberRepository;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @Transactional
@@ -53,15 +58,10 @@ public class ChatService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
 
         com.realtimechat.chat.entity.ChatMessage saved = chatMessageRepository.save(
-                new com.realtimechat.chat.entity.ChatMessage(
-                        sender,
-                        content,
-                        LocalDateTime.now(),
-                        room
-                )
+                new com.realtimechat.chat.entity.ChatMessage(sender, content, LocalDateTime.now(), room)
         );
 
-        return ChatMessageResponse.from(saved);
+        return withUnreadCount(ChatMessageResponse.from(saved));
     }
 
     @Transactional(readOnly = true)
@@ -79,7 +79,36 @@ public class ChatService {
                 )
                 .stream()
                 .map(ChatMessageResponse::from)
+                .map(this::withUnreadCount)
                 .sorted((a, b) -> a.createdAt().compareTo(b.createdAt()))
                 .toList();
     }
+
+    @Transactional
+    public Long markRoomRead(Long roomId, String username) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
+        ChatRoomMember member = memberRepository.findByRoom_IdAndUsername(roomId, username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "채팅방 참여자만 읽음 처리할 수 있습니다."));
+
+        Long latestMessageId = chatMessageRepository.findByRoomIdOrderByCreatedAtDesc(
+                roomId, PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt"))
+        ).stream().findFirst().map(com.realtimechat.chat.entity.ChatMessage::getId).orElse(null);
+
+        member.markReadThrough(latestMessageId);
+        memberRepository.save(member);
+        if (latestMessageId != null) {
+            messagingTemplate.convertAndSend("/topic/rooms/" + roomId + "/read",
+                    new ReadReceiptEvent(roomId, username, latestMessageId));
+        }
+        return latestMessageId;
+    }
+
+    private ChatMessageResponse withUnreadCount(ChatMessageResponse message) {
+        if (message.roomId() == null || message.id() == null) return message;
+        return message.withUnreadCount(memberRepository.countUnreadRecipients(
+                message.roomId(), message.sender(), message.id()));
+    }
+
+    public record ReadReceiptEvent(Long roomId, String reader, Long lastReadMessageId) {}
 }

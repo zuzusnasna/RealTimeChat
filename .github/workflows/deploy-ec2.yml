@@ -33,14 +33,15 @@ jobs:
           try {
             [System.IO.File]::WriteAllText($keyPath, $env:EC2_SSH_KEY, [System.Text.Encoding]::ASCII)
 
-            # Run through cmd.exe so ssh-keyscan's stderr banner does not interfere with PowerShell output capture.
-            $scan = & cmd.exe /d /c "ssh-keyscan -T 10 -t ed25519 $($env:EC2_HOST) 2>NUL"
+            # Capture ssh-keyscan stdout to a file to avoid PowerShell native stderr handling.
+            $scanPath = Join-Path $env:RUNNER_TEMP "realtimechat-ec2-keyscan"
+            & cmd.exe /d /c "ssh-keyscan -T 10 -t ed25519 $($env:EC2_HOST) > `"$scanPath`" 2>NUL"
             $scanExitCode = $LASTEXITCODE
-
-            if ($scanExitCode -ne 0 -or -not $scan) {
+            if ($scanExitCode -ne 0 -or -not (Test-Path $scanPath) -or (Get-Item $scanPath).Length -eq 0) {
               throw "Could not retrieve the EC2 SSH host key. Check EC2_HOST and the security group."
             }
-            [System.IO.File]::WriteAllText($knownHostsPath, (($scan -join "`n") + "`n"), [System.Text.Encoding]::ASCII)
+            Copy-Item $scanPath $knownHostsPath -Force
+            Remove-Item $scanPath -Force -ErrorAction SilentlyContinue
 
             $fingerprintOutput = & ssh-keygen -lf $knownHostsPath -E sha256
             $fingerprintMatch = [regex]::Match(($fingerprintOutput -join "`n"), 'SHA256:[A-Za-z0-9+/]+')

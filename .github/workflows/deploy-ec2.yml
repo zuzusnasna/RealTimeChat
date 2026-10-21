@@ -27,8 +27,7 @@ jobs:
               throw "EC2_SSH_KEY_B64 secret is empty."
             }
 
-            # Restore the private key bytes and restrict access to the runner account.
-            $keyBytes = [Convert]::FromBase64String(($env:EC2_SSH_KEY_B64 -replace '\s', ''))
+            $keyBytes = [Convert]::FromBase64String(($env:EC2_SSH_KEY_B64 -replace '\\s', ''))
             [System.IO.File]::WriteAllBytes($keyPath, $keyBytes)
             $runnerIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
             & icacls.exe $keyPath /inheritance:r | Out-Null
@@ -36,17 +35,21 @@ jobs:
             & icacls.exe $keyPath /grant:r "$($runnerIdentity):(R)" | Out-Null
             if ($LASTEXITCODE -ne 0) { throw "Could not grant the runner read access to the private key." }
 
-            # Base64 avoids PowerShell adding a BOM when sending a script to remote Bash.
             $remoteScript = @'
           set -e
           cd /home/ubuntu/RealTimeChat
+
+          # Always deploy the exact main revision; monitoring is deliberately opt-in.
           git fetch origin main
           git checkout -B main origin/main
-          docker compose up -d --build
+
+          # Explicitly start only production services. Profiled monitoring services
+          # are not part of this deployment and will not be started by this command.
+          docker compose config --services
+          docker compose up -d --build nginx app-1 app-2
           docker compose ps
           '@
             $remoteScript = $remoteScript.TrimStart([char[]]@(0xFEFF, 0x0D, 0x0A))
-            # PowerShell here-strings use Windows CRLF; Bash must receive Unix LF only.
             $remoteScript = $remoteScript -replace "`r`n", "`n" -replace "`r", ""
             $scriptBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remoteScript))
             $remoteCommand = "printf '%s' '$scriptBase64' | base64 -d | bash -se"

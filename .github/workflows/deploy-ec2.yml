@@ -46,14 +46,16 @@ jobs:
             # Use ProcessStartInfo so Windows PowerShell preserves the empty passphrase argument.
             $keyCheck = New-Object System.Diagnostics.ProcessStartInfo
             $keyCheck.FileName = $sshKeygen
-            $keyCheck.Arguments = '-y -P "" -f "' + $keyPath + '"'
+            $keyCheck.Arguments = '-y -f "' + $keyPath + '"'
             $keyCheck.UseShellExecute = $false
+            $keyCheck.RedirectStandardInput = $true
             $keyCheck.RedirectStandardOutput = $true
             $keyCheck.RedirectStandardError = $true
             $keyCheck.CreateNoWindow = $true
             $keyProcess = New-Object System.Diagnostics.Process
             $keyProcess.StartInfo = $keyCheck
             [void]$keyProcess.Start()
+            $keyProcess.StandardInput.Close()
             $keyProcess.StandardOutput.ReadToEnd() | Out-Null
             $keyCheckError = $keyProcess.StandardError.ReadToEnd()
             $keyProcess.WaitForExit()

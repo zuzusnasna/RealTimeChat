@@ -62,14 +62,28 @@ jobs:
               throw "Could not retrieve the EC2 SSH host key from $($env:EC2_HOST)."
             }
             [System.IO.File]::WriteAllLines($scanPath, $scanOutput, [System.Text.Encoding]::ASCII)
-            $fingerprintOutput = & ssh-keygen -lf $scanPath -E sha256
-            $fingerprints = [regex]::Matches(($fingerprintOutput -join "`n"), 'SHA256:[A-Za-z0-9+/]+={0,2}') | ForEach-Object { $_.Value }
             $expectedMatch = [regex]::Match($env:EC2_FINGERPRINT, 'SHA256:[A-Za-z0-9+/]+={0,2}')
             if (-not $expectedMatch.Success) { throw "EC2_FINGERPRINT must contain a SHA256: fingerprint." }
-            if (-not ($fingerprints | Where-Object { $_.TrimEnd('=') -eq $expectedMatch.Value })) {
+            $expectedFingerprint = $expectedMatch.Value.TrimEnd('=')
+
+            # Pin only the exact host-key line whose fingerprint matches the secret.
+            # Do not trust additional key types returned by ssh-keyscan without checking them.
+            $verifiedHostKey = $null
+            foreach ($hostKeyLine in $scanOutput) {
+              [System.IO.File]::WriteAllText($scanPath, ($hostKeyLine + "`n"), [System.Text.Encoding]::ASCII)
+              $lineFingerprintOutput = & ssh-keygen -lf $scanPath -E sha256 2>$null
+              if ($LASTEXITCODE -eq 0) {
+                $lineMatch = [regex]::Match(($lineFingerprintOutput -join "`n"), 'SHA256:[A-Za-z0-9+/]+={0,2}')
+                if ($lineMatch.Success -and $lineMatch.Value.TrimEnd('=') -eq $expectedFingerprint) {
+                  $verifiedHostKey = $hostKeyLine
+                  break
+                }
+              }
+            }
+            if ([string]::IsNullOrWhiteSpace($verifiedHostKey)) {
               throw "EC2 SSH host fingerprint mismatch. Check EC2_FINGERPRINT against the EC2 instance."
             }
-            Copy-Item $scanPath $knownHostsPath -Force
+            [System.IO.File]::WriteAllText($knownHostsPath, ($verifiedHostKey + "`n"), [System.Text.Encoding]::ASCII)
 
             $remoteScript = @'
           set -Eeuo pipefail
@@ -89,7 +103,8 @@ jobs:
 
           git fetch origin main
           git checkout main
-          git pull --ff-only origin main
+          # The working tree was checked clean above; deploy exactly the fetched main commit.
+          git reset --hard origin/main
           docker compose config -q
           docker compose build app-1 app-2
           docker compose up -d --remove-orphans

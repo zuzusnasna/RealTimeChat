@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class RoomAccessChannelInterceptor implements ChannelInterceptor {
 
     private static final Pattern SEND_DESTINATION = Pattern.compile("^/app/chat/(\\d+)$");
-    private static final Pattern SUBSCRIBE_DESTINATION = Pattern.compile("^/topic/rooms/(\\d+)$");
+    private static final Pattern SUBSCRIBE_DESTINATION = Pattern.compile("^/topic/rooms/(\\d+)(?:/read)?$");
 
     private final ChatRoomMemberRepository memberRepository;
 

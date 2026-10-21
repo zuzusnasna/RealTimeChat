@@ -1,6 +1,7 @@
 package com.realtimechat.chat.config;
 
 import com.realtimechat.chat.service.RedisChatMessageBroadcaster;
+import com.realtimechat.chat.service.RedisChatReadReceiptBroadcaster;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,14 +19,22 @@ public class RedisChatPubSubConfig {
     }
 
     @Bean
+    ChannelTopic chatReadReceiptTopic() {
+        return new ChannelTopic(RedisChatReadReceiptBroadcaster.CHANNEL);
+    }
+
+    @Bean
     RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
-            RedisChatMessageListener listener,
-            ChannelTopic chatMessageTopic
+            RedisChatMessageListener messageListener,
+            RedisChatReadReceiptListener readReceiptListener,
+            ChannelTopic chatMessageTopic,
+            ChannelTopic chatReadReceiptTopic
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(listener, chatMessageTopic);
+        container.addMessageListener(messageListener, chatMessageTopic);
+        container.addMessageListener(readReceiptListener, chatReadReceiptTopic);
         return container;
     }
 }

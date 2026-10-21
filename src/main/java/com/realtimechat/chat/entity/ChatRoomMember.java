@@ -36,6 +36,9 @@ public class ChatRoomMember {
     @Column(nullable = false)
     private LocalDateTime joinedAt;
 
+    @Column
+    private Long lastReadMessageId;
+
     protected ChatRoomMember() {
     }
 
@@ -45,19 +48,15 @@ public class ChatRoomMember {
         this.joinedAt = joinedAt;
     }
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
+    public ChatRoom getRoom() { return room; }
+    public String getUsername() { return username; }
+    public LocalDateTime getJoinedAt() { return joinedAt; }
+    public Long getLastReadMessageId() { return lastReadMessageId; }
 
-    public ChatRoom getRoom() {
-        return room;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public LocalDateTime getJoinedAt() {
-        return joinedAt;
+    public void markReadThrough(Long messageId) {
+        if (messageId != null && (lastReadMessageId == null || messageId > lastReadMessageId)) {
+            lastReadMessageId = messageId;
+        }
     }
 }

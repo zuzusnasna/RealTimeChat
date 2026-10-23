@@ -253,7 +253,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #8795ff; outline-
 .create-room-home .primary-button { white-space: nowrap; }
 .room-card-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); align-content: start; gap: 12px; }
 .room-card { display: flex; align-items: stretch; gap: 8px; min-width: 0; padding: 8px 10px 8px 14px; border: 1px solid #e2e5ec; background: #fff; color: #202635; transition: border-color .15s, background .15s; }
-.room-card:hover-within, .room-card:focus-within { border-color: #aeb8f2; background: #fbfbff; }
+.room-card:hover, .room-card:focus-within { border-color: #aeb8f2; background: #fbfbff; }
 .room-card-open { display: flex; align-items: center; gap: 13px; flex: 1; min-width: 0; padding: 10px 4px; border: 0; background: transparent; color: inherit; text-align: left; }
 .room-card-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; background: #eef0ff; color: #5265df; font-size: 22px; font-weight: 600; }
 .room-card-copy { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; }

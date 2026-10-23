@@ -35,6 +35,8 @@ export const options = {
     multi_vu_websocket_handshake_success: ['rate>0.99'],
     multi_vu_peer_messages_received: ['count>5'],
     multi_vu_peer_delivery_ms: ['p(95)<1000'],
+    multi_vu_out_of_order_messages: ['count==0'],
+    multi_vu_missing_sequence_gaps: ['count==0'],
     checks: ['rate>0.95'],
   },
 };

@@ -141,6 +141,8 @@ function ChatPage() {
   const [notificationPermission, setNotificationPermission] = useState(
     typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
   );
+  const [roomNotifications, setRoomNotifications] = useState({});
+  const [notificationSettingsLoaded, setNotificationSettingsLoaded] = useState(false);
   const [unreadRooms, setUnreadRooms] = useState(() => {
     try { return JSON.parse(localStorage.getItem('realtimechat-unread-rooms') || '{}'); }
     catch { return {}; }
@@ -160,6 +162,12 @@ function ChatPage() {
       setUsername(user.username);
       setDisplayName(user.displayName || user.username);
       usernameRef.current = user.username;
+      try {
+        setRoomNotifications(JSON.parse(localStorage.getItem('realtimechat-room-notifications:' + user.username) || '{}'));
+      } catch {
+        setRoomNotifications({});
+      }
+      setNotificationSettingsLoaded(true);
     }).catch(() => navigate('/login', { replace: true }));
     return () => { alive = false; };
   }, [navigate]);
@@ -225,24 +233,39 @@ function ChatPage() {
   }, [unreadRooms]);
 
   useEffect(() => {
+    if (!username || !notificationSettingsLoaded) return;
+    localStorage.setItem('realtimechat-room-notifications:' + username, JSON.stringify(roomNotifications));
+  }, [username, notificationSettingsLoaded, roomNotifications]);
+
+  useEffect(() => {
     if (!toast) return undefined;
     const timer = window.setTimeout(() => setToast(null), 5000);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const enableBrowserNotifications = useCallback(async () => {
-    if (typeof Notification === 'undefined') {
-      setError('이 브라우저는 알림을 지원하지 않습니다.');
-      return;
+  const toggleRoomNotifications = useCallback(async (room) => {
+    if (!room) return;
+    const id = String(room.id);
+    const willEnable = roomNotifications[id] === false;
+
+    if (willEnable && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      try {
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+      } catch {
+        setNotificationPermission('default');
+      }
+    } else if (typeof Notification !== 'undefined') {
+      setNotificationPermission(Notification.permission);
     }
-    try {
-      const permission = await Notification.requestPermission();
-      setNotificationPermission(permission);
-      if (permission === 'granted') setError('');
-    } catch {
-      setError('브라우저 알림 권한을 설정하지 못했습니다.');
+
+    setRoomNotifications(current => ({ ...current, [id]: willEnable }));
+    if (willEnable && typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+      setError('이 채팅방의 앱 알림은 켜졌지만 브라우저 알림은 차단되어 있습니다. 브라우저 사이트 설정에서 알림을 허용할 수 있습니다.');
+    } else {
+      setError('');
     }
-  }, []);
+  }, [roomNotifications]);
 
   useEffect(() => {
     const messageArea = messageAreaRef.current;
@@ -255,7 +278,7 @@ function ChatPage() {
     notificationSubscriptionsRef.current.forEach(subscription => subscription.unsubscribe());
     notificationSubscriptionsRef.current = [];
     const client = clientRef.current;
-    if (!connected || !client?.connected || !username) return undefined;
+    if (!connected || !client?.connected || !username || !notificationSettingsLoaded) return undefined;
 
     const subscriptions = rooms
       .filter(room => room.joined && String(room.id) !== String(roomId))
@@ -268,14 +291,17 @@ function ChatPage() {
           ...current,
           [String(room.id)]: Number(current[String(room.id)] || 0) + 1
         }));
-        setToast({
-          roomId: String(room.id),
-          roomName: room.name,
-          sender: message.displayName || message.sender || '새 메시지',
-          content: String(message.content || '').slice(0, 120)
-        });
+        if (roomNotifications[String(room.id)] !== false) {
+          setToast({
+            roomId: String(room.id),
+            roomName: room.name,
+            sender: message.displayName || message.sender || '새 메시지',
+            content: String(message.content || '').slice(0, 120)
+          });
+        }
 
-        if (typeof Notification !== 'undefined'
+        if (roomNotifications[String(room.id)] !== false
+            && typeof Notification !== 'undefined'
             && Notification.permission === 'granted'
             && (document.hidden || String(roomIdRef.current) !== String(room.id))) {
           const notification = new Notification(room.name, {
@@ -295,7 +321,7 @@ function ChatPage() {
       subscriptions.forEach(subscription => subscription.unsubscribe());
       notificationSubscriptionsRef.current = [];
     };
-  }, [connected, rooms, roomId, username, openRoom]);
+  }, [connected, rooms, roomId, username, openRoom, roomNotifications, notificationSettingsLoaded]);
 
 
   useEffect(() => {
@@ -582,7 +608,14 @@ function ChatPage() {
         <button type="button" className="chat-back-button" onClick={openRoomList} aria-label="채팅방 목록으로 돌아가기">← 목록</button>
         <div><p className="overline">채팅</p><h1>{activeRoom?.name || '채팅방 선택'}</h1></div>
         <div className="chat-header-actions">
-          {typeof Notification !== 'undefined' && notificationPermission !== 'granted' && <button className="outline-button" type="button" onClick={enableBrowserNotifications}>{notificationPermission === 'denied' ? '브라우저 설정에서 알림 허용' : '알림 켜기'}</button>}
+          {activeRoom?.joined && <button
+            type="button"
+            className={'room-notification-toggle chat-room-notification-toggle' + (roomNotifications[String(activeRoom.id)] !== false ? ' enabled' : '')}
+            aria-pressed={roomNotifications[String(activeRoom.id)] !== false}
+            onClick={() => toggleRoomNotifications(activeRoom)}>
+            <span aria-hidden="true">{roomNotifications[String(activeRoom.id)] !== false ? '🔔' : '🔕'}</span>
+            {roomNotifications[String(activeRoom.id)] !== false ? '알림 켬' : '알림 끔'}
+          </button>}
           {activeRoom && !activeRoom.joined && <button className="outline-button" type="button" onClick={joinRoom}>참여하기</button>}
         </div>
       </header>
@@ -608,11 +641,40 @@ function ChatPage() {
     </section> : <section className="room-home-content">
       <header className="room-home-header">
         <div><p className="overline">REALTIME MESSAGING</p><h1>채팅방</h1><p>대화할 채팅방을 선택하세요.</p></div>
-        <div className="room-home-user"><span className="avatar">{(displayName || username).slice(0, 1).toUpperCase() || "U"}</span><span>{displayName || username}</span><button type="button" className="outline-button" onClick={() => { setProfileDraft(displayName || username); setProfileNotice(""); setProfileError(false); setProfileOpen(true); }}>프로필</button><button type="button" className="outline-button" onClick={logout}>로그아웃</button></div>
+        <div className="room-home-user">
+          <div className="room-home-profile">
+            <span className="avatar">{(displayName || username).slice(0, 1).toUpperCase() || "U"}</span>
+            <span className="room-home-user-copy"><strong>{displayName || username}</strong><small>@{username}</small></span>
+          </div>
+          <div className="room-home-user-actions">
+            <button type="button" className="outline-button" onClick={() => { setProfileDraft(displayName || username); setProfileNotice(""); setProfileError(false); setProfileOpen(true); }}>프로필 수정</button>
+            <button type="button" className="outline-button" onClick={logout}>로그아웃</button>
+          </div>
+        </div>
       </header>
       {error && <div className="error-bar" role="alert">{error}<button type="button" onClick={() => setError("")} aria-label="오류 닫기">×</button></div>}
       <div className="room-home-toolbar"><div><h2>내 채팅방</h2><p>{rooms.length}개의 채팅방</p></div><form className="create-room-home" onSubmit={createRoom}><input aria-label="새 채팅방 이름" placeholder="새 채팅방 이름" maxLength={100} value={roomName} onChange={e => setRoomName(e.target.value)} /><button className="primary-button">채팅방 만들기</button></form></div>
-      <div className="room-card-list">{rooms.map(room => <button type="button" key={room.id} className="room-card" onClick={() => openRoom(room.id)}><span className="room-card-icon">#</span><span className="room-card-copy"><strong>{room.name}</strong><small>{room.joined ? "참여 중인 채팅방" : "참여 후 메시지를 확인할 수 있습니다"}</small></span>{Number(unreadRooms[String(room.id)] || room.unreadCount || 0) > 0 && <span className="room-unread-badge">{Number(unreadRooms[String(room.id)] || room.unreadCount) > 99 ? "99+" : Number(unreadRooms[String(room.id)] || room.unreadCount)}</span>}<span className="room-card-arrow">→</span></button>)}{!rooms.length && <div className="room-home-empty"><strong>채팅방이 없습니다.</strong><p>새 채팅방을 만들어 대화를 시작하세요.</p></div>}</div>
+      <div className="room-card-list">{rooms.map(room => {
+        const notificationsEnabled = roomNotifications[String(room.id)] !== false;
+        const unreadCount = Number(unreadRooms[String(room.id)] ?? room.unreadCount ?? 0);
+        return <div key={room.id} className="room-card">
+          <button type="button" className="room-card-open" onClick={() => openRoom(room.id)}>
+            <span className="room-card-icon">#</span>
+            <span className="room-card-copy"><strong>{room.name}</strong><small>{room.joined ? "참여 중인 채팅방" : "참여 후 메시지를 확인할 수 있습니다"}</small></span>
+            {unreadCount > 0 && <span className="room-unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+            <span className="room-card-arrow">→</span>
+          </button>
+          <button type="button"
+            className={'room-notification-toggle' + (notificationsEnabled ? ' enabled' : '')}
+            aria-pressed={notificationsEnabled}
+            aria-label={room.name + ' 알림 ' + (notificationsEnabled ? '끄기' : '켜기')}
+            title={notificationsEnabled ? '이 채팅방 알림 끄기' : '이 채팅방 알림 켜기'}
+            onClick={() => toggleRoomNotifications(room)}>
+            <span aria-hidden="true">{notificationsEnabled ? '🔔' : '🔕'}</span>
+            <span>{notificationsEnabled ? '알림 켬' : '알림 끔'}</span>
+          </button>
+        </div>;
+      })}{!rooms.length && <div className="room-home-empty"><strong>채팅방이 없습니다.</strong><p>새 채팅방을 만들어 대화를 시작하세요.</p></div>}</div>
       <footer className="room-home-footer"><span className={connected ? "status-dot online" : "status-dot"} />{connection}</footer>
     </section>}
   </main>;

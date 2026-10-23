@@ -116,6 +116,7 @@ function LoginPage() {
       </div>
     </section>
   </main>;
+}
 
 function ChatPage() {
   const navigate = useNavigate();

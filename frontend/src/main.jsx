@@ -588,6 +588,7 @@ function ChatPage() {
     </button>}
     {isRoomView ? <section className="chat-main">
       <header className="chat-header">
+        <button type="button" className="chat-back-button" onClick={openRoomList} aria-label="채팅방 목록으로 돌아가기">← 목록</button>
         <div><p className="overline">채팅</p><h1>{activeRoom?.name || '채팅방 선택'}</h1></div>
         <div className="chat-header-actions">
           {typeof Notification !== 'undefined' && notificationPermission !== 'granted' && <button className="outline-button" type="button" onClick={enableBrowserNotifications}>{notificationPermission === 'denied' ? '브라우저 설정에서 알림 허용' : '알림 켜기'}</button>}

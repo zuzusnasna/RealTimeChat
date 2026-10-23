@@ -77,12 +77,14 @@ public class ChatService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "채팅방 참여자만 메시지를 전송할 수 있습니다.");
         }
 
-        // Lock the room row so requests handled by different app instances
-        // serialize their message writes for this room.
-        long lockStart = System.nanoTime();
-        ChatRoom room = chatRoomRepository.findByIdForUpdate(roomId)
+        // Do not hold a pessimistic lock on the room row for the entire message
+        // transaction. The previous room lock serialized every message in the
+        // same room across app instances and made rapid chat traffic wait behind
+        // unrelated INSERT/read work. Message rows are independent, so a plain
+        // lookup is sufficient here; ordering is measured separately by the
+        // load-test metrics instead of using a long-lived DB row lock.
+        ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
-        long lockWaitMs = (System.nanoTime() - lockStart) / 1_000_000;
 
         long saveStart = System.nanoTime();
         com.realtimechat.chat.entity.ChatMessage saved = chatMessageRepository.save(
@@ -99,8 +101,8 @@ public class ChatService {
         );
 
         long totalMs = (System.nanoTime() - totalStart) / 1_000_000;
-        log.info("[CHAT-PERF] roomId={} sender={} lockWaitMs={} dbSaveMs={} saveMessageTotalMs={}",
-                roomId, sender, lockWaitMs, dbSaveMs, totalMs);
+        log.info("[CHAT-PERF] roomId={} sender={} dbSaveMs={} saveMessageTotalMs={}",
+                roomId, sender, dbSaveMs, totalMs);
         return response;
     }
 

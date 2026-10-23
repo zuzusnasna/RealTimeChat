@@ -8,10 +8,11 @@ public record ChatRoomResponse(
         String name,
         LocalDateTime createdAt,
         boolean joined,
-        boolean owner
+        boolean owner,
+        long unreadCount
 ) {
 
-    public static ChatRoomResponse from(ChatRoom room, boolean joined, boolean owner) {
-        return new ChatRoomResponse(room.getId(), room.getName(), room.getCreatedAt(), joined, owner);
+    public static ChatRoomResponse from(ChatRoom room, boolean joined, boolean owner, long unreadCount) {
+        return new ChatRoomResponse(room.getId(), room.getName(), room.getCreatedAt(), joined, owner, unreadCount);
     }
 }

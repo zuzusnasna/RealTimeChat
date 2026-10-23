@@ -47,7 +47,12 @@ def frontendDir = file("$projectDir/frontend")
 def frontendNodeModules = file("$frontendDir/node_modules")
 def frontendBuildDir = file("$projectDir/src/main/resources/static/ui")
 
+// Local development runs Vite separately. Do not reinstall/build the frontend
+// as a side effect of bootRun; npm ci can fail on Windows when esbuild.exe is locked.
+def isLocalBootRun = gradle.startParameter.taskNames.any { it == 'bootRun' || it.endsWith(':bootRun') }
+
 tasks.register('installFrontendDependencies', Exec) {
+    onlyIf { !isLocalBootRun }
     group = 'frontend'
     description = 'Install frontend dependencies from the lockfile.'
 
@@ -63,6 +68,7 @@ tasks.register('installFrontendDependencies', Exec) {
 }
 
 tasks.register('buildFrontend', Exec) {
+    onlyIf { !isLocalBootRun }
     group = 'frontend'
     description = 'Build the React frontend into Spring Boot static resources.'
 

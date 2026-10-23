@@ -65,7 +65,7 @@ flowchart TB
 - Docker Desktop
 - Windows PowerShell
 
-프로젝트 루트에서 `.env.example`을 참고해 `.env`를 만들고 필요한 값을 설정합니다. 실제 비밀번호가 담긴 `.env`는 커밋하지 마세요.
+로컬 개발 스크립트는 `docker-compose.local.yml`과 `application-local.properties`를 사용하므로 별도 `.env` 없이 실행할 수 있습니다. 운영 Compose 또는 모니터링을 직접 실행할 때는 `.env.example`을 참고해 `.env`를 만들고 비밀번호를 설정하세요. 실제 비밀번호가 담긴 `.env`는 커밋하지 마세요.
 
 ### 실행
 
@@ -88,13 +88,9 @@ docker compose --profile monitoring up -d
 
 ### k6 부하 테스트
 
-Docker Compose로 app-1/app-2를 실행하고 k6를 설치한 뒤, 테스트용 DB에서 실행합니다.
+[k6 가이드](docs/K6.md)의 사전 조건에 따라 두 앱 인스턴스의 주소를 테스트 환경에서 접근 가능하게 설정한 뒤 실행합니다. 현재 운영 Compose는 앱 포트를 외부에 직접 공개하지 않으므로, 해당 명령을 실행하기 전에 테스트 대상 주소가 실제로 열려 있는지 확인하세요.
 
-```powershell
-k6 run -e BASE_URL_1=http://localhost:8080 -e BASE_URL_2=http://localhost:8081 k6/chat-load.js
-```
-
-테스트 계정과 채팅방이 DB에 생성되므로 운영 DB에서 실행하지 마세요. 자세한 내용은 [k6 가이드](docs/K6.md)를 참고하세요.
+테스트 계정과 채팅방이 DB에 생성되므로 운영 DB에서 실행하지 마세요.
 
 ## 최근 성능 측정
 

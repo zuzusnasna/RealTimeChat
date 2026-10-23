@@ -258,10 +258,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid #8795ff; outline-
 .room-home-footer { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 36px; color: #81899a; font-size: 11px; }
 .back-to-rooms { padding: 0; border: 0; background: transparent; color: #9da7bd; font-size: 11px; }
 .back-to-rooms:hover { color: #fff; }
-.chat-app.room-view { grid-template-columns: 220px minmax(0, 1fr); }
-.chat-app.room-view .sidebar { padding-top: 18px; }
-.chat-app.room-view .sidebar .wordmark { padding-bottom: 16px; }
-.chat-app.room-view .section-title { margin-top: 16px; }
+.chat-app.room-view { display: block; min-height: 100vh; }
+.chat-app.room-view > .sidebar { display: none; }
+.chat-back-button { flex: 0 0 auto; padding: 9px 11px; border: 1px solid #dce1ec; background: #fff; color: #586174; font-size: 12px; }
+.chat-back-button:hover { border-color: #aeb8f2; color: #4354c4; }
 @media (max-width: 720px) {
   .room-home-content { padding: 0 16px 22px; }
   .room-home-header { align-items: flex-start; flex-direction: column; padding: 22px 0; }

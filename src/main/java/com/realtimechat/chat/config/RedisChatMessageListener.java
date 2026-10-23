@@ -29,15 +29,23 @@ public class RedisChatMessageListener implements MessageListener {
 
     @Override
     public void onMessage(Message message, byte[] pattern) {
+        long listenerStart = System.nanoTime();
         try {
             ChatMessageResponse chatMessage = objectMapper.readValue(
                     message.getBody(),
                     ChatMessageResponse.class
             );
+            long deserializeMs = (System.nanoTime() - listenerStart) / 1_000_000;
             if (chatMessage.roomId() == null) {
                 return;
             }
+
+            long stompStart = System.nanoTime();
             messagingTemplate.convertAndSend("/topic/rooms/" + chatMessage.roomId(), chatMessage);
+            long stompSendMs = (System.nanoTime() - stompStart) / 1_000_000;
+            long listenerTotalMs = (System.nanoTime() - listenerStart) / 1_000_000;
+            log.info("[CHAT-PERF] redisListener roomId={} messageId={} deserializeMs={} stompSendMs={} listenerTotalMs={}",
+                    chatMessage.roomId(), chatMessage.id(), deserializeMs, stompSendMs, listenerTotalMs);
         } catch (Exception exception) {
             // Ignore malformed events without stopping message delivery for other events.
             log.warn("Redis 채팅 이벤트 처리에 실패했습니다.", exception);

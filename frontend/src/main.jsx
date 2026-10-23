@@ -253,12 +253,9 @@ function ChatPage() {
       }
     }
 
+    // Room-level app notifications remain independent of browser permission.
+    // A denied browser permission suppresses system notifications without a warning.
     setRoomNotifications(current => ({ ...current, [id]: willEnable }));
-    if (willEnable && typeof Notification !== 'undefined' && Notification.permission === 'denied') {
-      setError('이 채팅방의 앱 알림은 켜졌지만 브라우저 알림은 차단되어 있습니다. 브라우저 사이트 설정에서 알림을 허용할 수 있습니다.');
-    } else {
-      setError('');
-    }
   }, [roomNotifications]);
 
   useEffect(() => {

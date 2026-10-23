@@ -179,3 +179,53 @@ button:focus-visible, input:focus-visible { outline: 2px solid #8795ff; outline-
   .profile-dialog { padding: 20px; }
   .user-row { flex-wrap: wrap; }
 }
+
+
+/* Realtime message notifications */
+.room-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 19px;
+  margin-left: auto;
+  padding: 0 5px;
+  background: #5265df;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1;
+}
+.chat-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.notification-toast {
+  position: fixed;
+  z-index: 30;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: min(380px, calc(100vw - 32px));
+  padding: 15px 14px;
+  border: 1px solid #dce1ef;
+  border-left: 3px solid var(--accent);
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+  box-shadow: 0 12px 36px rgb(20 28 50 / 18%);
+  animation: notification-enter .18s ease-out;
+}
+.toast-icon { padding-top: 2px; color: var(--accent); font-size: 12px; }
+.toast-copy { display: flex; flex: 1; flex-direction: column; gap: 5px; min-width: 0; }
+.toast-copy strong { font-size: 12px; font-weight: 750; }
+.toast-copy span { overflow: hidden; color: #626b7c; font-size: 12px; line-height: 1.5; text-overflow: ellipsis; overflow-wrap: anywhere; }
+.toast-close { color: #8b93a2; font-size: 18px; line-height: 1; }
+.notification-toast:hover { border-color: #aab4ee; background: #fafaff; }
+@keyframes notification-enter {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 720px) {
+  .notification-toast { top: 10px; right: 10px; }
+  .chat-header-actions { justify-content: flex-end; }
+}

@@ -181,8 +181,7 @@ function ChatPage() {
       data.filter(room => Number(room.unreadCount) > 0)
         .map(room => [String(room.id), Number(room.unreadCount)])
     ));
-    const saved = sessionStorage.getItem('lastActiveRoomId');
-    const target = [preferredId, routeRoomId, saved, roomIdRef.current].find(id =>
+    const target = [preferredId, routeRoomId, roomIdRef.current].find(id =>
       id != null && data.some(room => String(room.id) === String(id))
     );
     if (target != null) setRoomId(String(target));

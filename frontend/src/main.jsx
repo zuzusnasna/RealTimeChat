@@ -91,11 +91,9 @@ function LoginPage() {
     <aside className="auth-aside">
       <a className="wordmark" href="#/login"><span className="brand-mark">R</span> RealTimeChat</a>
       <div className="auth-intro">
-        <p className="overline">실시간 채팅</p>
         <h1>채팅방에서<br />대화하세요.</h1>
         <p>로그인 후 채팅방을 선택하세요.</p>
       </div>
-      <div className="auth-aside-foot">RealTimeChat</div>
     </aside>
     <section className="auth-main">
       <div className="auth-form-wrap">
@@ -573,7 +571,7 @@ function ChatPage() {
     {profileOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setProfileOpen(false); }}>
       <section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-title">
         <div className="profile-dialog-header">
-          <div><p className="overline">계정 관리</p><h2 id="profile-title">프로필</h2></div>
+          <div><h2 id="profile-title">프로필 수정</h2></div>
           <button type="button" className="dialog-close" onClick={() => setProfileOpen(false)} aria-label="프로필 닫기">×</button>
         </div>
         <p className="profile-account">아이디 <strong>{username}</strong></p>
@@ -597,7 +595,7 @@ function ChatPage() {
     {isRoomView ? <section className="chat-main">
       <header className="chat-header">
         <button type="button" className="chat-back-button" onClick={openRoomList} aria-label="채팅방 목록으로 돌아가기">← 목록</button>
-        <div><p className="overline">채팅</p><h1>{activeRoom?.name || '채팅방 선택'}</h1></div>
+        <div className="chat-room-title"><h1>{activeRoom?.name || '채팅방 선택'}</h1><span className={connected ? 'chat-connection online' : 'chat-connection'}><i />{connection}</span></div>
         <div className="chat-header-actions">
           {activeRoom?.joined && <button
             type="button"
@@ -631,7 +629,7 @@ function ChatPage() {
       </form>
     </section> : <section className="room-home-content">
       <header className="room-home-header">
-        <div><p className="overline">REALTIME MESSAGING</p><h1>채팅방</h1><p>대화할 채팅방을 선택하세요.</p></div>
+        <div className="room-home-title"><h1>채팅</h1><p>대화할 방을 선택하세요.</p></div>
         <div className="room-home-user">
           <div className="room-home-profile">
             <span className="avatar">{(displayName || username).slice(0, 1).toUpperCase() || "U"}</span>
@@ -650,10 +648,10 @@ function ChatPage() {
         const unreadCount = Number(unreadRooms[String(room.id)] ?? room.unreadCount ?? 0);
         return <div key={room.id} className="room-card">
           <button type="button" className="room-card-open" onClick={() => openRoom(room.id)}>
-            <span className="room-card-icon">#</span>
+            <span className="room-card-icon" aria-hidden="true">{room.name.slice(0, 1).toUpperCase()}</span>
             <span className="room-card-copy"><strong>{room.name}</strong><small>{room.joined ? "참여 중인 채팅방" : "참여 후 메시지를 확인할 수 있습니다"}</small></span>
             {unreadCount > 0 && <span className="room-unread-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
-            <span className="room-card-arrow">→</span>
+            <span className="room-card-arrow" aria-hidden="true">›</span>
           </button>
           <button type="button"
             className={'room-notification-toggle' + (notificationsEnabled ? ' enabled' : '')}

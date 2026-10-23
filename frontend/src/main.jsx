@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HashRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Client } from '@stomp/stompjs';
 import './styles.css';
 
@@ -114,12 +114,24 @@ function LoginPage() {
         </form>
         {notice && <p className={error ? 'notice error' : 'notice'} role="status">{notice}</p>}
       </div>
-    </section>
+    </section> : <section className="room-home-content">
+      <header className="room-home-header">
+        <div><p className="overline">REALTIME MESSAGING</p><h1>채팅방</h1><p>대화할 채팅방을 선택하세요.</p></div>
+        <div className="room-home-user"><span className="avatar">{(displayName || username).slice(0, 1).toUpperCase() || "U"}</span><span>{displayName || username}</span><button type="button" className="outline-button" onClick={() => { setProfileDraft(displayName || username); setProfileNotice(""); setProfileError(false); setProfileOpen(true); }}>프로필</button><button type="button" className="outline-button" onClick={logout}>로그아웃</button></div>
+      </header>
+      {error && <div className="error-bar" role="alert">{error}<button type="button" onClick={() => setError("")} aria-label="오류 닫기">×</button></div>}
+      <div className="room-home-toolbar"><div><h2>내 채팅방</h2><p>{rooms.length}개의 채팅방</p></div><form className="create-room-home" onSubmit={createRoom}><input aria-label="새 채팅방 이름" placeholder="새 채팅방 이름" maxLength={100} value={roomName} onChange={e => setRoomName(e.target.value)} /><button className="primary-button">채팅방 만들기</button></form></div>
+      <div className="room-card-list">{rooms.map(room => <button type="button" key={room.id} className="room-card" onClick={() => openRoom(room.id)}><span className="room-card-icon">#</span><span className="room-card-copy"><strong>{room.name}</strong><small>{room.joined ? "참여 중인 채팅방" : "참여 후 메시지를 확인할 수 있습니다"}</small></span>{Number(unreadRooms[String(room.id)] || room.unreadCount || 0) > 0 && <span className="room-unread-badge">{Number(unreadRooms[String(room.id)] || room.unreadCount) > 99 ? "99+" : Number(unreadRooms[String(room.id)] || room.unreadCount)}</span>}<span className="room-card-arrow">→</span></button>)}{!rooms.length && <div className="room-home-empty"><strong>채팅방이 없습니다.</strong><p>새 채팅방을 만들어 대화를 시작하세요.</p></div>}</div>
+      <footer className="room-home-footer"><span className={connected ? "status-dot online" : "status-dot"} />{connection}</footer>
+    </section>}
   </main>;
 }
 
 function ChatPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { roomId: routeRoomId } = useParams();
+  const isRoomView = Boolean(routeRoomId);
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
@@ -170,7 +182,7 @@ function ChatPage() {
         .map(room => [String(room.id), Number(room.unreadCount)])
     ));
     const saved = sessionStorage.getItem('lastActiveRoomId');
-    const target = [preferredId, saved, roomIdRef.current, data[0]?.id].find(id =>
+    const target = [preferredId, routeRoomId, saved, roomIdRef.current].find(id =>
       id != null && data.some(room => String(room.id) === String(id))
     );
     if (target != null) setRoomId(String(target));
@@ -178,7 +190,7 @@ function ChatPage() {
       setRoomId('');
       setMessages([{ system: '채팅방이 없습니다. 새 채팅방을 만들어 주세요.' }]);
     }
-  }, []);
+  }, [routeRoomId]);
 
   useEffect(() => {
     const client = new Client({
@@ -203,6 +215,21 @@ function ChatPage() {
   }, [loadRooms]);
 
   const activeRoom = rooms.find(room => String(room.id) === String(roomId));
+
+  useEffect(() => {
+    if (routeRoomId) { setRoomId(String(routeRoomId)); roomIdRef.current = String(routeRoomId); }
+    else { setRoomId(''); roomIdRef.current = ''; }
+  }, [routeRoomId]);
+
+  const openRoom = useCallback((id) => {
+    const nextId = String(id);
+    sessionStorage.setItem('lastActiveRoomId', nextId);
+    setRoomId(nextId);
+    navigate('/chat/rooms/' + nextId);
+    setToast(null);
+  }, [navigate]);
+
+  const openRoomList = useCallback(() => { navigate('/chat'); setRoomId(''); }, [navigate]);
 
   useEffect(() => {
     localStorage.setItem('realtimechat-unread-rooms', JSON.stringify(unreadRooms));
@@ -269,7 +296,7 @@ function ChatPage() {
           });
           notification.onclick = () => {
             window.focus();
-            setRoomId(String(room.id));
+            openRoom(room.id);
             notification.close();
           };
         }
@@ -279,7 +306,7 @@ function ChatPage() {
       subscriptions.forEach(subscription => subscription.unsubscribe());
       notificationSubscriptionsRef.current = [];
     };
-  }, [connected, rooms, roomId, username]);
+  }, [connected, rooms, roomId, username, openRoom]);
 
 
   useEffect(() => {
@@ -419,6 +446,7 @@ function ChatPage() {
       const room = await request('/api/rooms', { method: 'POST', body: JSON.stringify({ name }) });
       setRoomName('');
       await loadRooms(room.id);
+      openRoom(room.id);
       setError('');
     } catch (e) { setError(e.message); }
   }
@@ -512,17 +540,17 @@ function ChatPage() {
     navigate('/login', { replace: true });
   }
 
-  return <main className="chat-app">
+  return <main className={'chat-app ' + (isRoomView ? 'room-view' : 'room-home')}>
     <aside className="sidebar">
       <a className="wordmark" href="#/chat"><span className="brand-mark">R</span> RealTimeChat</a>
-      <div className="section-title">채팅방</div>
+      <div className="section-title">{isRoomView ? <button type="button" className="back-to-rooms" onClick={openRoomList}>← 채팅방 목록</button> : "채팅방"}</div>
       <form className="create-room" onSubmit={createRoom}>
         <input aria-label="새 채팅방 이름" placeholder="채팅방 이름" maxLength={100} value={roomName} onChange={e => setRoomName(e.target.value)} />
         <button aria-label="채팅방 만들기" title="채팅방 만들기" className="add-button">+</button>
       </form>
       <nav className="room-list" aria-label="채팅방 목록">
         {rooms.map(room => <div key={room.id} className="room-item">
-          <button type="button" className={String(room.id) === String(roomId) ? 'room-link selected' : 'room-link'} onClick={() => setRoomId(String(room.id))}>
+          <button type="button" className={String(room.id) === String(roomId) ? 'room-link selected' : 'room-link'} onClick={() => openRoom(room.id)}>
             <span className={room.joined ? 'room-indicator joined' : 'room-indicator'} />
             <span className="room-name">{room.name}</span>
             {Number(unreadRooms[String(room.id)] || 0) > 0 && <span className="room-unread-badge" aria-label={unreadRooms[String(room.id)] + '개 안 읽은 메시지'}>{Number(unreadRooms[String(room.id)]) > 99 ? '99+' : unreadRooms[String(room.id)]}</span>}
@@ -555,12 +583,12 @@ function ChatPage() {
         {profileNotice && <p className={profileError ? 'notice error' : 'notice'} role="status">{profileNotice}</p>}
       </section>
     </div>}
-    {toast && <button type="button" className="notification-toast" onClick={() => { setRoomId(toast.roomId); setToast(null); }} aria-label={toast.roomName + ' 채팅방으로 이동'}>
+    {toast && <button type="button" className="notification-toast" onClick={() => openRoom(toast.roomId)} aria-label={toast.roomName + ' 채팅방으로 이동'}>
       <span className="toast-icon">●</span>
       <span className="toast-copy"><strong>{toast.roomName} · {toast.sender}</strong><span>{toast.content || '새 메시지가 도착했습니다.'}</span></span>
       <span className="toast-close" onClick={event => { event.stopPropagation(); setToast(null); }}>×</span>
     </button>}
-    <section className="chat-main">
+    {isRoomView ? <section className="chat-main">
       <header className="chat-header">
         <div><p className="overline">채팅</p><h1>{activeRoom?.name || '채팅방 선택'}</h1></div>
         <div className="chat-header-actions">
@@ -596,6 +624,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/chat" element={<ChatPage />} />
+      <Route path="/chat/rooms/:roomId" element={<ChatPage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   </HashRouter>;

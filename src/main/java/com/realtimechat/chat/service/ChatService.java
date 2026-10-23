@@ -55,6 +55,18 @@ public class ChatService {
         String sender = authenticatedSender == null ? "" : authenticatedSender.trim();
         String content = message.content() == null ? "" : message.content().trim();
 
+        // Measure the full transactional method lifecycle, including commit/rollback
+        // performed by Spring after this method returns.
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    log.info("[CHAT-PERF] roomId={} sender={} transactionCompletionMs={} transactionStatus={}",
+                            roomId, sender, (System.nanoTime() - totalStart) / 1_000_000, status);
+                }
+            });
+        }
+
         if (sender.isBlank() || sender.length() > 50) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이름은 1~50자로 입력해 주세요.");
         }

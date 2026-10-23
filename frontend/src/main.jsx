@@ -114,18 +114,8 @@ function LoginPage() {
         </form>
         {notice && <p className={error ? 'notice error' : 'notice'} role="status">{notice}</p>}
       </div>
-    </section> : <section className="room-home-content">
-      <header className="room-home-header">
-        <div><p className="overline">REALTIME MESSAGING</p><h1>채팅방</h1><p>대화할 채팅방을 선택하세요.</p></div>
-        <div className="room-home-user"><span className="avatar">{(displayName || username).slice(0, 1).toUpperCase() || "U"}</span><span>{displayName || username}</span><button type="button" className="outline-button" onClick={() => { setProfileDraft(displayName || username); setProfileNotice(""); setProfileError(false); setProfileOpen(true); }}>프로필</button><button type="button" className="outline-button" onClick={logout}>로그아웃</button></div>
-      </header>
-      {error && <div className="error-bar" role="alert">{error}<button type="button" onClick={() => setError("")} aria-label="오류 닫기">×</button></div>}
-      <div className="room-home-toolbar"><div><h2>내 채팅방</h2><p>{rooms.length}개의 채팅방</p></div><form className="create-room-home" onSubmit={createRoom}><input aria-label="새 채팅방 이름" placeholder="새 채팅방 이름" maxLength={100} value={roomName} onChange={e => setRoomName(e.target.value)} /><button className="primary-button">채팅방 만들기</button></form></div>
-      <div className="room-card-list">{rooms.map(room => <button type="button" key={room.id} className="room-card" onClick={() => openRoom(room.id)}><span className="room-card-icon">#</span><span className="room-card-copy"><strong>{room.name}</strong><small>{room.joined ? "참여 중인 채팅방" : "참여 후 메시지를 확인할 수 있습니다"}</small></span>{Number(unreadRooms[String(room.id)] || room.unreadCount || 0) > 0 && <span className="room-unread-badge">{Number(unreadRooms[String(room.id)] || room.unreadCount) > 99 ? "99+" : Number(unreadRooms[String(room.id)] || room.unreadCount)}</span>}<span className="room-card-arrow">→</span></button>)}{!rooms.length && <div className="room-home-empty"><strong>채팅방이 없습니다.</strong><p>새 채팅방을 만들어 대화를 시작하세요.</p></div>}</div>
-      <footer className="room-home-footer"><span className={connected ? "status-dot online" : "status-dot"} />{connection}</footer>
-    </section>}
+    </section>
   </main>;
-}
 
 function ChatPage() {
   const navigate = useNavigate();

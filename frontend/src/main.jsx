@@ -135,7 +135,16 @@ function ChatPage() {
   const [connection, setConnection] = useState('연결 중');
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
+  const [notificationPermission, setNotificationPermission] = useState(
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+  );
+  const [unreadRooms, setUnreadRooms] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('realtimechat-unread-rooms') || '{}'); }
+    catch { return {}; }
+  });
   const clientRef = useRef(null);
+  const notificationSubscriptionsRef = useRef([]);
   const subscriptionRef = useRef(null);
   const readSubscriptionRef = useRef(null);
   const roomIdRef = useRef('');
@@ -192,9 +201,82 @@ function ChatPage() {
   const activeRoom = rooms.find(room => String(room.id) === String(roomId));
 
   useEffect(() => {
+    localStorage.setItem('realtimechat-unread-rooms', JSON.stringify(unreadRooms));
+  }, [unreadRooms]);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const enableBrowserNotifications = useCallback(async () => {
+    if (typeof Notification === 'undefined') {
+      setError('이 브라우저는 알림을 지원하지 않습니다.');
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === 'granted') setError('');
+    } catch {
+      setError('브라우저 알림 권한을 설정하지 못했습니다.');
+    }
+  }, []);
+
+  useEffect(() => {
     const messageArea = messageAreaRef.current;
     if (messageArea) messageArea.scrollTop = messageArea.scrollHeight;
   }, [messages]);
+
+  // Subscribe to joined rooms in the background so messages from other rooms
+  // can raise a toast and a browser notification without polling the server.
+  useEffect(() => {
+    notificationSubscriptionsRef.current.forEach(subscription => subscription.unsubscribe());
+    notificationSubscriptionsRef.current = [];
+    const client = clientRef.current;
+    if (!connected || !client?.connected || !username) return undefined;
+
+    const subscriptions = rooms
+      .filter(room => room.joined && String(room.id) !== String(roomId))
+      .map(room => client.subscribe('/topic/rooms/' + room.id, frame => {
+        let message;
+        try { message = JSON.parse(frame.body); } catch { return; }
+        if (!message || message.sender === usernameRef.current) return;
+
+        setUnreadRooms(current => ({
+          ...current,
+          [String(room.id)]: Number(current[String(room.id)] || 0) + 1
+        }));
+        setToast({
+          roomId: String(room.id),
+          roomName: room.name,
+          sender: message.displayName || message.sender || '새 메시지',
+          content: String(message.content || '').slice(0, 120)
+        });
+
+        if (typeof Notification !== 'undefined'
+            && Notification.permission === 'granted'
+            && (document.hidden || String(roomIdRef.current) !== String(room.id))) {
+          const notification = new Notification(room.name, {
+            body: (message.displayName || message.sender || '새 메시지') + ': ' + String(message.content || '').slice(0, 120),
+            tag: 'realtimechat-room-' + room.id,
+            renotify: false
+          });
+          notification.onclick = () => {
+            window.focus();
+            setRoomId(String(room.id));
+            notification.close();
+          };
+        }
+      }));
+    notificationSubscriptionsRef.current = subscriptions;
+    return () => {
+      subscriptions.forEach(subscription => subscription.unsubscribe());
+      notificationSubscriptionsRef.current = [];
+    };
+  }, [connected, rooms, roomId, username]);
+
 
   useEffect(() => {
     let alive = true;
@@ -208,6 +290,12 @@ function ChatPage() {
       return;
     }
     sessionStorage.setItem('lastActiveRoomId', roomId);
+    setUnreadRooms(current => {
+      if (!current[roomId]) return current;
+      const next = { ...current };
+      delete next[roomId];
+      return next;
+    });
     if (!activeRoom.joined) {
       setMessages([{ system: '메시지를 보려면 채팅방에 참여하세요.' }]);
       return;
@@ -430,6 +518,7 @@ function ChatPage() {
           <button type="button" className={String(room.id) === String(roomId) ? 'room-link selected' : 'room-link'} onClick={() => setRoomId(String(room.id))}>
             <span className={room.joined ? 'room-indicator joined' : 'room-indicator'} />
             <span className="room-name">{room.name}</span>
+            {Number(unreadRooms[String(room.id)] || 0) > 0 && <span className="room-unread-badge" aria-label={unreadRooms[String(room.id)] + '개 안 읽은 메시지'}>{Number(unreadRooms[String(room.id)]) > 99 ? '99+' : unreadRooms[String(room.id)]}</span>}
           </button>
           {room.owner && <button type="button" className="room-delete" aria-label={room.name + ' 채팅방 삭제'} title="채팅방 삭제" onClick={() => deleteRoom(room)}>×</button>}
         </div>)}
@@ -459,10 +548,18 @@ function ChatPage() {
         {profileNotice && <p className={profileError ? 'notice error' : 'notice'} role="status">{profileNotice}</p>}
       </section>
     </div>}
+    {toast && <button type="button" className="notification-toast" onClick={() => { setRoomId(toast.roomId); setToast(null); }} aria-label={toast.roomName + ' 채팅방으로 이동'}>
+      <span className="toast-icon">●</span>
+      <span className="toast-copy"><strong>{toast.roomName} · {toast.sender}</strong><span>{toast.content || '새 메시지가 도착했습니다.'}</span></span>
+      <span className="toast-close" onClick={event => { event.stopPropagation(); setToast(null); }}>×</span>
+    </button>}
     <section className="chat-main">
       <header className="chat-header">
         <div><p className="overline">채팅</p><h1>{activeRoom?.name || '채팅방 선택'}</h1></div>
-        {activeRoom && !activeRoom.joined && <button className="outline-button" type="button" onClick={joinRoom}>참여하기</button>}
+        <div className="chat-header-actions">
+          {typeof Notification !== 'undefined' && notificationPermission !== 'granted' && <button className="outline-button" type="button" onClick={enableBrowserNotifications}>{notificationPermission === 'denied' ? '브라우저 설정에서 알림 허용' : '알림 켜기'}</button>}
+          {activeRoom && !activeRoom.joined && <button className="outline-button" type="button" onClick={joinRoom}>참여하기</button>}
+        </div>
       </header>
       {error && <div className="error-bar" role="alert">{error}<button type="button" onClick={() => setError('')} aria-label="오류 닫기">×</button></div>}
       <section className="message-area" aria-label="메시지 목록" ref={messageAreaRef}>

@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Configuration
 @ConditionalOnProperty(name = "chat.redis.enabled", havingValue = "true")
@@ -24,52 +23,17 @@ public class RedisChatPubSubConfig {
         return new ChannelTopic(RedisChatReadReceiptBroadcaster.CHANNEL);
     }
 
-    @Bean(name = "chatRedisTaskExecutor")
-    ThreadPoolTaskExecutor chatRedisTaskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
-        executor.setQueueCapacity(1000);
-        executor.setThreadNamePrefix("redis-chat-");
-        executor.initialize();
-        return executor;
-    }
-
-    @Bean(name = "readReceiptRedisTaskExecutor")
-    ThreadPoolTaskExecutor readReceiptRedisTaskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
-        executor.setQueueCapacity(1000);
-        executor.setThreadNamePrefix("redis-read-receipt-");
-        executor.initialize();
-        return executor;
-    }
-
-    @Bean(name = "redisChatMessageListenerContainer")
-    RedisMessageListenerContainer redisChatMessageListenerContainer(
+    @Bean
+    RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
             RedisChatMessageListener messageListener,
-            ChannelTopic chatMessageTopic,
-            ThreadPoolTaskExecutor chatRedisTaskExecutor
-    ) {
-        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
-        container.setConnectionFactory(connectionFactory);
-        container.setTaskExecutor(chatRedisTaskExecutor);
-        container.addMessageListener(messageListener, chatMessageTopic);
-        return container;
-    }
-
-    @Bean(name = "redisChatReadReceiptListenerContainer")
-    RedisMessageListenerContainer redisChatReadReceiptListenerContainer(
-            RedisConnectionFactory connectionFactory,
             RedisChatReadReceiptListener readReceiptListener,
-            ChannelTopic chatReadReceiptTopic,
-            ThreadPoolTaskExecutor readReceiptRedisTaskExecutor
+            ChannelTopic chatMessageTopic,
+            ChannelTopic chatReadReceiptTopic
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.setTaskExecutor(readReceiptRedisTaskExecutor);
+        container.addMessageListener(messageListener, chatMessageTopic);
         container.addMessageListener(readReceiptListener, chatReadReceiptTopic);
         return container;
     }

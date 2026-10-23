@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class ChatService {
 
     private static final int HISTORY_LIMIT = 100;
+    private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
@@ -48,6 +51,7 @@ public class ChatService {
 
     @Transactional
     public ChatMessageResponse saveMessage(Long roomId, String authenticatedSender, ChatMessage message) {
+        long totalStart = System.nanoTime();
         String sender = authenticatedSender == null ? "" : authenticatedSender.trim();
         String content = message.content() == null ? "" : message.content().trim();
 
@@ -63,17 +67,29 @@ public class ChatService {
 
         // Lock the room row so requests handled by different app instances
         // serialize their message writes for this room.
+        long lockStart = System.nanoTime();
         ChatRoom room = chatRoomRepository.findByIdForUpdate(roomId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."));
+        long lockWaitMs = (System.nanoTime() - lockStart) / 1_000_000;
 
+        long saveStart = System.nanoTime();
         com.realtimechat.chat.entity.ChatMessage saved = chatMessageRepository.save(
                 new com.realtimechat.chat.entity.ChatMessage(sender, content, LocalDateTime.now(), room)
         );
+        long dbSaveMs = (System.nanoTime() - saveStart) / 1_000_000;
 
         String displayName = userRepository.findByUsername(sender)
                 .map(ChatUser::getDisplayName)
                 .orElse(sender);
-        return withUnreadCount(ChatMessageResponse.from(saved).withDisplayName(displayName), memberRepository.findByRoom_Id(roomId));
+        ChatMessageResponse response = withUnreadCount(
+                ChatMessageResponse.from(saved).withDisplayName(displayName),
+                memberRepository.findByRoom_Id(roomId)
+        );
+
+        long totalMs = (System.nanoTime() - totalStart) / 1_000_000;
+        log.info("[CHAT-PERF] roomId={} sender={} lockWaitMs={} dbSaveMs={} saveMessageTotalMs={}",
+                roomId, sender, lockWaitMs, dbSaveMs, totalMs);
+        return response;
     }
 
     @Transactional(readOnly = true)

@@ -57,7 +57,7 @@ if (-not ($mysqlReady -and $redisReady)) {
 Write-Host "[4/5] Installing frontend dependencies if needed..." -ForegroundColor Cyan
 if (-not (Test-Path (Join-Path $frontend "node_modules"))) {
     Push-Location $frontend
-    try { npm install; if ($LASTEXITCODE -ne 0) { throw "npm install failed." } }
+    try { npm ci; if ($LASTEXITCODE -ne 0) { throw "npm ci failed." } }
     finally { Pop-Location }
 }
 

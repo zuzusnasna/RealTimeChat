@@ -1,9 +1,10 @@
-name: Deploy
+name: Manual Windows Compose Deploy
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   deploy:

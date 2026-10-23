@@ -1,3 +1,4 @@
+# Production/EC2 stack. Local development uses docker-compose.local.yml.
 services:
   nginx:
     image: nginx:1.28-alpine
@@ -95,6 +96,7 @@ services:
     restart: unless-stopped
     mem_limit: 288m
 
+  # Enable only when investigating performance; these consume additional EC2 memory.
   prometheus:
     profiles: ["monitoring"]
     image: prom/prometheus:v3.5.0

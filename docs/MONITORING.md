@@ -2,32 +2,39 @@
 
 ## 구성
 
-- Spring Boot Actuator: JVM, 프로세스, HTTP 요청 등 애플리케이션 메트릭 노출
+- Spring Boot Actuator: JVM, 프로세스, HTTP 요청 메트릭 노출
 - Prometheus: 5초 간격으로 app-1과 app-2의 메트릭 수집
 - Grafana: Prometheus 메트릭 조회 및 대시보드 시각화
-- 관리 엔드포인트는 컨테이너 내부 9090 포트로 분리하며 호스트 포트에 공개하지 않습니다.
+- 관리 엔드포인트는 컨테이너 내부 9090 포트로 분리하며 호스트에 직접 공개하지 않습니다.
+- EC2 메모리 사용량을 줄이기 위해 두 모니터링 서비스는 기본 Compose 실행에서 제외되어 있습니다.
 
 ## 실행
 
-Docker Desktop 실행 후 프로젝트 루트에서:
+Docker Desktop 또는 EC2 프로젝트 디렉터리에서 실행합니다.
 
 ```powershell
-docker compose up --build -d
-docker compose ps
+docker compose --profile monitoring up -d
+docker compose --profile monitoring ps
+```
+
+EC2처럼 메모리가 작은 환경에서는 조사할 때만 켜고 확인이 끝나면 중지하세요.
+
+```powershell
+docker compose stop grafana prometheus
 ```
 
 접속 주소:
 
-- Grafana: http://localhost:3000 (기본 계정 `admin` / `admin`, 최초 로그인 후 변경 권장)
+- Grafana: http://localhost:3000 (호스트의 localhost에만 바인딩)
 - Prometheus: http://localhost:9091
 
-Grafana 데이터 소스와 **RealTimeChat - Application Monitoring** 대시보드는 provisioning으로 자동 등록됩니다.
+Grafana 계정은 `.env`의 `GRAFANA_ADMIN_USER` 및 `GRAFANA_ADMIN_PASSWORD`로 설정합니다. 해당 비밀번호는 필수이며 실제 운영 환경에서는 강력한 값으로 지정하세요.
 
 ## 수집 상태 확인
 
 Prometheus의 **Status → Targets**에서 `spring-boot-app-1`, `spring-boot-app-2` 상태가 모두 `UP`인지 확인합니다.
 
-Prometheus의 Graph 페이지에서 다음 쿼리를 실행할 수 있습니다.
+Prometheus Graph에서 사용할 수 있는 쿼리 예시:
 
 - HTTP 요청 처리량: `rate(http_server_requests_seconds_count[1m])`
 - HTTP 요청 p95 응답시간: `histogram_quantile(0.95, sum by (le, instance_name) (rate(http_server_requests_seconds_bucket[5m])))`
@@ -35,17 +42,10 @@ Prometheus의 Graph 페이지에서 다음 쿼리를 실행할 수 있습니다.
 - CPU 사용량: `process_cpu_usage`
 - 가동 시간: `process_uptime_seconds`
 
-메트릭은 요청이 발생한 후에 표시될 수 있습니다. 요청 지표가 0이거나 비어 있으면 먼저 웹 UI를 이용하고 Prometheus Targets가 정상인지 확인하세요.
+메트릭은 요청이 발생한 후에 표시될 수 있습니다. 요청 지표가 비어 있으면 웹 UI를 이용한 뒤 Prometheus Targets 상태부터 확인하세요.
 
-## 종료 및 데이터 보존
+## 데이터 보존 및 주의
 
-```powershell
-docker compose stop
-docker compose start
-```
+`docker compose stop`은 컨테이너를 중지하고, `docker compose down`은 컨테이너를 제거하지만 named volume은 유지합니다. **`docker compose down -v`는 모니터링 데이터와 MySQL 데이터까지 삭제하므로 주의하세요.**
 
-컨테이너를 제거하고 다시 만들려면 `docker compose down`을 사용합니다. Prometheus와 Grafana 데이터는 named volume에 보존됩니다. **`docker compose down -v`는 모니터링 데이터와 MySQL 데이터도 삭제하므로 주의하세요.**
-
-## 보안 주의
-
-기본 Grafana 계정은 로컬 개발용입니다. 외부에 노출되는 서버에서는 반드시 `GRAFANA_ADMIN_USER`와 `GRAFANA_ADMIN_PASSWORD`를 강력한 값으로 설정하고, 포트 접근을 방화벽으로 제한하세요. Actuator 관리 포트는 호스트에 직접 publish하지 않습니다.
+Actuator 관리 포트는 호스트에 직접 publish하지 않습니다. 모니터링 포트를 외부에 공개하지 말고 접근 범위를 제한하세요.

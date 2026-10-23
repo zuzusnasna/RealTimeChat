@@ -52,7 +52,11 @@ tasks.register('installFrontendDependencies', Exec) {
     description = 'Install frontend dependencies from the lockfile.'
 
     workingDir frontendDir
-    commandLine 'npm', 'ci'
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        commandLine 'cmd', '/c', 'npm ci'
+    } else {
+        commandLine 'npm', 'ci'
+    }
 
     inputs.files(file("$frontendDir/package.json"), file("$frontendDir/package-lock.json"))
     outputs.dir(frontendNodeModules)
@@ -64,7 +68,11 @@ tasks.register('buildFrontend', Exec) {
 
     dependsOn 'installFrontendDependencies'
     workingDir frontendDir
-    commandLine 'npm', 'run', 'build'
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        commandLine 'cmd', '/c', 'npm run build'
+    } else {
+        commandLine 'npm', 'run', 'build'
+    }
 
     inputs.files(
         fileTree("$frontendDir/src"),

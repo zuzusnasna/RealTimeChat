@@ -138,9 +138,6 @@ function ChatPage() {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState(null);
-  const [notificationPermission, setNotificationPermission] = useState(
-    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
-  );
   const [roomNotifications, setRoomNotifications] = useState({});
   const [notificationSettingsLoaded, setNotificationSettingsLoaded] = useState(false);
   const [unreadRooms, setUnreadRooms] = useState(() => {
@@ -251,12 +248,9 @@ function ChatPage() {
     if (willEnable && typeof Notification !== 'undefined' && Notification.permission === 'default') {
       try {
         const permission = await Notification.requestPermission();
-        setNotificationPermission(permission);
       } catch {
-        setNotificationPermission('default');
       }
     } else if (typeof Notification !== 'undefined') {
-      setNotificationPermission(Notification.permission);
     }
 
     setRoomNotifications(current => ({ ...current, [id]: willEnable }));

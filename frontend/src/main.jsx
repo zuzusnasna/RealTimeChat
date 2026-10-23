@@ -247,10 +247,10 @@ function ChatPage() {
 
     if (willEnable && typeof Notification !== 'undefined' && Notification.permission === 'default') {
       try {
-        const permission = await Notification.requestPermission();
+        await Notification.requestPermission();
       } catch {
+        // In-app notifications can still work if the browser permission request fails.
       }
-    } else if (typeof Notification !== 'undefined') {
     }
 
     setRoomNotifications(current => ({ ...current, [id]: willEnable }));

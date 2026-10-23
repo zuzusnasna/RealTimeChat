@@ -224,12 +224,22 @@ function ChatPage() {
         // cannot leave the visible conversation in arrival order.
         setMessages(current => {
           const byId = new Map();
-          current.filter(item => !item.system).forEach(item => {
-            if (item.id != null) byId.set(String(item.id), item);
+          const optimistic = current.filter(item => item.optimistic);
+          current.filter(item => !item.system && item.id != null).forEach(item => {
+            byId.set(String(item.id), item);
           });
+
+          // Replace the oldest matching local optimistic message with the server-confirmed event.
+          let remainingOptimistic = optimistic;
+          if (message.sender === usernameRef.current) {
+            const matchingIndex = optimistic.findIndex(item => item.content === message.content);
+            if (matchingIndex >= 0) {
+              remainingOptimistic = optimistic.filter((_, index) => index !== matchingIndex);
+            }
+          }
           if (message.id != null) byId.set(String(message.id), message);
-          else byId.set('pending-' + Date.now() + '-' + Math.random(), message);
-          return [...byId.values()].sort((a, b) => {
+
+          return [...byId.values(), ...remainingOptimistic].sort((a, b) => {
             if (a.id != null && b.id != null) return Number(a.id) - Number(b.id);
             return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
           });
@@ -282,10 +292,14 @@ function ChatPage() {
           const byId = new Map(
             history.filter(item => item.id != null).map(item => [String(item.id), item])
           );
-          current.filter(item => !item.system && item.id != null).forEach(item => {
-            if (!byId.has(String(item.id))) byId.set(String(item.id), item);
+          current.filter(item => !item.system).forEach(item => {
+            if (item.optimistic) return;
+            if (item.id != null && !byId.has(String(item.id))) byId.set(String(item.id), item);
           });
-          const merged = [...byId.values()].sort((a, b) => Number(a.id) - Number(b.id));
+          const merged = [...byId.values(), ...current.filter(item => item.optimistic)].sort((a, b) => {
+            if (a.id != null && b.id != null) return Number(a.id) - Number(b.id);
+            return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+          });
           return merged.length ? merged : [{ system: '첫 메시지를 보내 보세요.' }];
         });
       })
@@ -332,13 +346,39 @@ function ChatPage() {
     } catch (e) { setError(e.message); }
   }
 
+  const optimisticMessageCounterRef = useRef(0);
+
   function sendMessage(event) {
     event.preventDefault();
     const content = draft.trim();
     const client = clientRef.current;
     if (!content || !roomId || !client?.connected || !activeRoom?.joined) return;
-    client.publish({ destination: '/app/chat/' + roomId, body: JSON.stringify({ content }) });
+
+    const localId = 'local-' + Date.now() + '-' + (++optimisticMessageCounterRef.current);
+    const optimisticMessage = {
+      id: null,
+      localId,
+      optimistic: true,
+      sender: usernameRef.current,
+      displayName: displayName || usernameRef.current,
+      content,
+      createdAt: new Date().toISOString(),
+      unreadCount: 0
+    };
+
+    // Render immediately; the STOMP echo replaces this temporary item after server persistence.
+    setMessages(current => [...current, optimisticMessage]);
     setDraft('');
+    try {
+      client.publish({
+        destination: '/app/chat/' + roomId,
+        body: JSON.stringify({ content })
+      });
+    } catch (e) {
+      setMessages(current => current.filter(item => item.localId !== localId));
+      setDraft(content);
+      setError('메시지를 전송하지 못했습니다. 다시 시도해 주세요.');
+    }
   }
 
   async function saveProfile(event) {

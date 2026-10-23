@@ -37,7 +37,7 @@ public class ChatRoomService {
                 new ChatRoom(request.name().trim(), LocalDateTime.now(), username)
         );
         memberRepository.save(new ChatRoomMember(room, username, LocalDateTime.now()));
-        return ChatRoomResponse.from(room, true, true);
+        return ChatRoomResponse.from(room, true, true, 0L);
     }
 
     @Transactional(readOnly = true)
@@ -45,11 +45,18 @@ public class ChatRoomService {
         return chatRoomRepository.findAll()
                 .stream()
                 .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
-                .map(room -> ChatRoomResponse.from(
-                        room,
-                        memberRepository.existsByRoom_IdAndUsername(room.getId(), username),
-                        isOwner(room, username)
-                ))
+                .map(room -> {
+                    var member = memberRepository.findByRoom_IdAndUsername(room.getId(), username);
+                    long unreadCount = member.map(value -> messageRepository.countUnreadMessages(
+                            room.getId(), username, value.getLastReadMessageId()
+                    )).orElse(0L);
+                    return ChatRoomResponse.from(
+                            room,
+                            member.isPresent(),
+                            isOwner(room, username),
+                            unreadCount
+                    );
+                })
                 .toList();
     }
 
@@ -66,7 +73,8 @@ public class ChatRoomService {
         return ChatRoomResponse.from(
                 room,
                 true,
-                isOwner(room, username)
+                isOwner(room, username),
+                0L
         );
     }
 

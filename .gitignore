@@ -47,3 +47,5 @@ frontend/dist/
 src/main/resources/static/ui/
 
 *.log
+# Vite cache
+frontend/.vite/

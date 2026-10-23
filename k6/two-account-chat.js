@@ -96,6 +96,12 @@ export function setup() {
 }
 
 export default function (data) {
+  // This scenario models exactly two accounts. Extra VUs would reuse account B
+  // while maintaining independent sequence counters, invalidating order metrics.
+  if (__VU > 2) {
+    fail('two-account-chat.js supports exactly 2 VUs; do not override with --vus. Use a separate multi-user test for load testing.');
+  }
+
   const isAccountA = __VU === 1;
   const username = isAccountA ? USER_A : USER_B;
   const password = isAccountA ? PASS_A : PASS_B;
@@ -167,10 +173,14 @@ export default function (data) {
           peerMessagesReceived.add(1);
           peerDeliveryLatency.add(Math.max(0, Date.now() - sentAt));
 
-          if (peerSequence !== lastPeerSequence + 1) {
+          // A gap means one or more sequence numbers have not arrived yet; it
+          // is not by itself proof of reordering. Count reordering only when a
+          // duplicate or older sequence arrives after a newer one.
+          if (peerSequence <= lastPeerSequence) {
             outOfOrderMessages.add(1);
+          } else {
+            lastPeerSequence = peerSequence;
           }
-          lastPeerSequence = peerSequence;
 
           // Immediately reply to the other account, creating a rapid two-way exchange.
           sendMessage(socket);

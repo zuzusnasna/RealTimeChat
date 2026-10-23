@@ -129,7 +129,6 @@ function LoginPage() {
 
 function ChatPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { roomId: routeRoomId } = useParams();
   const isRoomView = Boolean(routeRoomId);
   const [username, setUsername] = useState('');
@@ -181,7 +180,7 @@ function ChatPage() {
       data.filter(room => Number(room.unreadCount) > 0)
         .map(room => [String(room.id), Number(room.unreadCount)])
     ));
-    const target = [preferredId, routeRoomId, roomIdRef.current].find(id =>
+    const target = [preferredId, roomIdRef.current].find(id =>
       id != null && data.some(room => String(room.id) === String(id))
     );
     if (target != null) setRoomId(String(target));
@@ -189,7 +188,7 @@ function ChatPage() {
       setRoomId('');
       setMessages([{ system: '채팅방이 없습니다. 새 채팅방을 만들어 주세요.' }]);
     }
-  }, [routeRoomId]);
+  }, []);
 
   useEffect(() => {
     const client = new Client({

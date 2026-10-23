@@ -165,6 +165,10 @@ function ChatPage() {
   const loadRooms = useCallback(async (preferredId) => {
     const data = await request('/api/rooms');
     setRooms(data);
+    setUnreadRooms(Object.fromEntries(
+      data.filter(room => Number(room.unreadCount) > 0)
+        .map(room => [String(room.id), Number(room.unreadCount)])
+    ));
     const saved = sessionStorage.getItem('lastActiveRoomId');
     const target = [preferredId, saved, roomIdRef.current, data[0]?.id].find(id =>
       id != null && data.some(room => String(room.id) === String(id))
@@ -375,8 +379,11 @@ function ChatPage() {
     // Persist this user's read position first, then load history using the
     // committed state so refresh and initial room entry show the same counts.
     request('/api/rooms/' + roomId + '/read', { method: 'POST' })
-      .then(() => request('/api/rooms/' + roomId + '/messages'))
-      .then(history => {
+      .then(() => Promise.all([
+        request('/api/rooms/' + roomId + '/messages'),
+        loadRooms(roomId)
+      ]))
+      .then(([history]) => {
         if (!alive || roomIdRef.current !== String(roomId)) return;
         // Initial history can finish after live STOMP events. Merge instead of
         // replacing the list, otherwise the response can hide newer messages.

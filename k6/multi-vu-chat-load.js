@@ -116,7 +116,7 @@ export default function (data) {
     },
     (socket) => {
       socket.on('open', () => {
-        socket.send('CONNECT\naccept-version:1.2\nheart-beat:0,0\n\u0000');
+        socket.send('CONNECT\naccept-version:1.2\nheart-beat:0,0\n\n\u0000');
       });
 
       socket.on('message', (frame) => {

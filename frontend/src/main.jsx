@@ -266,10 +266,14 @@ function ChatPage() {
                   history.filter(item => item.id != null).map(item => [String(item.id), item])
                 );
                 // Keep any live event that arrived after the history request began.
-                current.filter(item => !item.system && item.id != null).forEach(item => {
-                  if (!byId.has(String(item.id))) byId.set(String(item.id), item);
+                current.filter(item => !item.system).forEach(item => {
+                  if (item.optimistic) return;
+                  if (item.id != null && !byId.has(String(item.id))) byId.set(String(item.id), item);
                 });
-                const merged = [...byId.values()].sort((a, b) => Number(a.id) - Number(b.id));
+                const merged = [...byId.values(), ...current.filter(item => item.optimistic)].sort((a, b) => {
+                  if (a.id != null && b.id != null) return Number(a.id) - Number(b.id);
+                  return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+                });
                 return merged.length ? merged : [{ system: '첫 메시지를 보내 보세요.' }];
               });
             })

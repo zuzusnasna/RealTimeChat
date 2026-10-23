@@ -229,3 +229,51 @@ button:focus-visible, input:focus-visible { outline: 2px solid #8795ff; outline-
   .notification-toast { top: 10px; right: 10px; }
   .chat-header-actions { justify-content: flex-end; }
 }
+
+
+/* Separate room directory and conversation into distinct screens */
+.chat-app.room-home { display: block; min-height: 100vh; background: #f6f7f9; }
+.chat-app.room-home > .sidebar { display: none; }
+.room-home-content { display: flex; flex-direction: column; min-height: 100vh; padding: 0 clamp(20px, 5vw, 72px) 28px; }
+.room-home-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 28px 0; border-bottom: 1px solid #e3e6eb; }
+.room-home-header h1 { margin: 0; font-size: 28px; letter-spacing: -.8px; }
+.room-home-header > div:first-child > p:last-child { margin: 8px 0 0; color: #7d8594; font-size: 13px; }
+.room-home-user { display: flex; align-items: center; gap: 10px; color: #4c5362; font-size: 12px; }
+.room-home-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; margin: 32px 0 18px; }
+.room-home-toolbar h2 { margin: 0; font-size: 17px; }
+.room-home-toolbar p { margin: 6px 0 0; color: #858c9b; font-size: 12px; }
+.create-room-home { display: flex; gap: 8px; width: min(100%, 460px); }
+.create-room-home input { flex: 1; min-width: 0; padding: 11px 13px; border: 1px solid #dfe3eb; background: #fff; color: #202635; font-size: 12px; }
+.create-room-home .primary-button { white-space: nowrap; }
+.room-card-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); align-content: start; gap: 12px; }
+.room-card { display: flex; align-items: center; gap: 13px; min-width: 0; padding: 18px; border: 1px solid #e2e5ec; background: #fff; color: #202635; text-align: left; transition: border-color .15s, background .15s; }
+.room-card:hover { border-color: #aeb8f2; background: #fbfbff; }
+.room-card-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; background: #eef0ff; color: #5265df; font-size: 22px; font-weight: 600; }
+.room-card-copy { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; }
+.room-card-copy strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.room-card-copy small { color: #858c9b; font-size: 11px; }
+.room-card-arrow { color: #9098a9; font-size: 18px; }
+.room-home-empty { grid-column: 1 / -1; padding: 48px 20px; border: 1px dashed #d9deea; background: #fff; text-align: center; }
+.room-home-empty p { color: #7d8594; font-size: 12px; }
+.room-home-footer { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 36px; color: #81899a; font-size: 11px; }
+.back-to-rooms { padding: 0; border: 0; background: transparent; color: #9da7bd; font-size: 11px; }
+.back-to-rooms:hover { color: #fff; }
+.chat-app.room-view { grid-template-columns: 220px minmax(0, 1fr); }
+.chat-app.room-view .sidebar { padding-top: 18px; }
+.chat-app.room-view .sidebar .wordmark { padding-bottom: 16px; }
+.chat-app.room-view .section-title { margin-top: 16px; }
+@media (max-width: 720px) {
+  .room-home-content { padding: 0 16px 22px; }
+  .room-home-header { align-items: flex-start; flex-direction: column; padding: 22px 0; }
+  .room-home-header h1 { font-size: 24px; }
+  .room-home-user { flex-wrap: wrap; }
+  .room-home-toolbar { align-items: stretch; flex-direction: column; margin-top: 24px; }
+  .create-room-home { width: 100%; }
+  .create-room-home .primary-button { padding: 10px; }
+  .room-card-list { grid-template-columns: 1fr; }
+  .chat-app.room-view { display: block; }
+  .chat-app.room-view > .sidebar { display: none; }
+  .chat-app.room-view .chat-main { height: 100vh; }
+  .chat-app.room-view .chat-header { min-height: 72px; padding: 14px 16px; }
+  .chat-app.room-view .message-area { padding: 20px 14px; }
+}

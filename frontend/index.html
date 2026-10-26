@@ -49,29 +49,33 @@
       }
       .room-card-delete {
         position: absolute;
-        right: 12px;
+        right: 56px;
         bottom: 12px;
         z-index: 3;
         width: 34px;
         height: 34px;
         padding: 0;
-        border: 1px solid #3c4350;
-        border-radius: 8px;
-        background: #20242d;
-        color: #aeb6c5;
+        border: 1px solid #e1e4e9;
+        border-radius: 50%;
+        background: #fff;
+        color: #8b929e;
+        box-shadow: 0 2px 8px rgba(32, 38, 53, .08);
         font-size: 18px;
+        font-weight: 500;
         line-height: 1;
         cursor: pointer;
+        transition: border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
       }
       .room-card-delete:hover,
       .room-card-delete:focus-visible {
-        border-color: #ff6f7d;
-        background: #30242a;
-        color: #ff8f9b;
+        border-color: #ffb8bf;
+        color: #e34f5f;
+        box-shadow: 0 3px 10px rgba(32, 38, 53, .12);
+        transform: translateY(-1px);
       }
       @media (max-width: 720px) {
         .room-card-delete {
-          right: 10px;
+          right: 58px;
           bottom: 10px;
           width: 40px;
           height: 40px;

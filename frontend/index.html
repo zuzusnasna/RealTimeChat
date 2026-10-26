@@ -42,10 +42,103 @@
           color: #b9c1cf;
         }
       }
+
+      /* The room-home card is a separate view from the sidebar room list. */
+      .room-card {
+        position: relative;
+      }
+      .room-card-delete {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        z-index: 3;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border: 1px solid #3c4350;
+        border-radius: 8px;
+        background: #20242d;
+        color: #aeb6c5;
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .room-card-delete:hover,
+      .room-card-delete:focus-visible {
+        border-color: #ff6f7d;
+        background: #30242a;
+        color: #ff8f9b;
+      }
+      @media (max-width: 720px) {
+        .room-card-delete {
+          right: 10px;
+          bottom: 10px;
+          width: 40px;
+          height: 40px;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      (() => {
+        let rooms = [];
+        let busy = false;
+
+        async function loadRoomOwners() {
+          try {
+            const response = await fetch('/api/rooms', { credentials: 'same-origin' });
+            if (!response.ok) return;
+            rooms = await response.json();
+            decorateRoomCards();
+          } catch {}
+        }
+
+        function decorateRoomCards() {
+          const cards = document.querySelectorAll('.room-card-list .room-card');
+          cards.forEach((card, index) => {
+            const room = rooms[index];
+            if (!room?.owner || card.querySelector('.room-card-delete')) return;
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'room-card-delete';
+            button.setAttribute('aria-label', room.name + ' 채팅방 삭제');
+            button.title = '채팅방 삭제';
+            button.textContent = '×';
+            button.addEventListener('click', async event => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (busy) return;
+              if (!window.confirm(`'${room.name}' 채팅방을 삭제할까요? 저장된 메시지와 참여 정보도 모두 삭제됩니다.`)) return;
+
+              busy = true;
+              try {
+                const response = await fetch('/api/rooms/' + room.id, {
+                  method: 'DELETE',
+                  credentials: 'same-origin'
+                });
+                if (!response.ok) throw new Error('채팅방을 삭제하지 못했습니다.');
+                sessionStorage.removeItem('lastActiveRoomId');
+                window.location.reload();
+              } catch (error) {
+                window.alert(error.message || '채팅방을 삭제하지 못했습니다.');
+              } finally {
+                busy = false;
+              }
+            });
+            card.appendChild(button);
+          });
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+          loadRoomOwners();
+          const observer = new MutationObserver(decorateRoomCards);
+          observer.observe(document.getElementById('root'), { childList: true, subtree: true });
+        });
+      })();
+    </script>
   </body>
 </html>

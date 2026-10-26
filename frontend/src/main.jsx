@@ -662,6 +662,12 @@ function ChatPage() {
             <span aria-hidden="true">{notificationsEnabled ? '🔔' : '🔕'}</span>
             <span>{notificationsEnabled ? '알림 켬' : '알림 끔'}</span>
           </button>
+          {room.owner && <button
+            type="button"
+            className="room-card-delete"
+            aria-label={room.name + ' 채팅방 삭제'}
+            title="채팅방 삭제"
+            onClick={() => deleteRoom(room)}>×</button>}
         </div>;
       })}{!rooms.length && <div className="room-home-empty"><strong>채팅방이 없습니다.</strong><p>새 채팅방을 만들어 대화를 시작하세요.</p></div>}</div>
       <footer className="room-home-footer"><span className={connected ? "status-dot online" : "status-dot"} />{connection}</footer>
